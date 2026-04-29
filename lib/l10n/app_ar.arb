@@ -1,0 +1,14 @@
+{
+  "@@locale": "ar",
+  "appTitle": "الأورورا",
+  "home": "الرئيسية",
+  "settings": "الإعدادات",
+  "theme": "السمة",
+  "language": "اللغة",
+  "lightTheme1": "السمة الفاتحة 1",
+  "lightTheme2": "السمة الفاتحة 2",
+  "darkTheme1": "السمة الداكنة 1",
+  "darkTheme2": "السمة الداكنة 2",
+  "english": "الإنجليزية",
+  "arabic": "العربية"
+}

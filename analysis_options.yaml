@@ -1,0 +1,5 @@
+analyzer:
+  errors:
+    unused_field: warning
+    depend_on_referenced_packages: ignore
+    unused_import: ignore

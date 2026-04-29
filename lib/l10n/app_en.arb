@@ -1,0 +1,14 @@
+{
+  "@@locale": "en",
+  "appTitle": "Aurora",
+  "home": "Home",
+  "settings": "Settings",
+  "theme": "Theme",
+  "language": "Language",
+  "lightTheme1": "Light Theme 1",
+  "lightTheme2": "Light Theme 2",
+  "darkTheme1": "Dark Theme 1",
+  "darkTheme2": "Dark Theme 2",
+  "english": "English",
+  "arabic": "Arabic"
+}
