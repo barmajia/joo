@@ -1,8 +1,9 @@
+import 'dart:io';
 import 'package:aurora/pages/seller/add_product_page.dart';
 import 'package:aurora/pages/seller/products_page.dart';
 import 'package:aurora/pages/analysis/analysis_page.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -22,12 +23,27 @@ import 'package:aurora/l10n/app_localizations.dart';
 import 'package:aurora/supabase/supabase_auth.dart';
 import 'package:aurora/users/account_type.dart';
 
+Future<Map<String, String>> _loadEnvVars() async {
+  final content = await rootBundle.loadString('.env');
+  final lines = content.split('\n');
+  final Map<String, String> envVars = {};
+  for (final line in lines) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+    final parts = trimmed.split('=');
+    if (parts.length == 2) {
+      envVars[parts[0].trim()] = parts[1].trim();
+    }
+  }
+  return envVars;
+}
+
 Future<void> main() async {
-  await dotenv.load(fileName: '.env');
-  String supabaseUrl = await dotenv.env['SUPABASE_URL']!;
-  String supabaseAnonKey = await dotenv.env['SUPABASE_ANON_KEY']!;
-  Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   WidgetsFlutterBinding.ensureInitialized();
+  final envVars = await _loadEnvVars();
+  String supabaseUrl = envVars['SUPABASE_URL']!;
+  String supabaseAnonKey = envVars['SUPABASE_ANON_KEY']!;
+  Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
   await Storage.init();
 
@@ -106,34 +122,45 @@ class _SplashScreenState extends State<SplashScreen> {
     _checkAuthAndNavigate();
   }
 
-  Future<void> _checkAuthAndNavigate() async {
-    await Future.delayed(const Duration(milliseconds: 500));
+   Future<void> _checkAuthAndNavigate() async {
+     await Future.delayed(const Duration(milliseconds: 500));
 
-    final supabase = Supabase.instance.client;
-    final currentUser = supabase.auth.currentUser;
+     try {
+       // Ensure storage is initialized
+       await Storage.init();
+       
+       final supabase = Supabase.instance.client;
+       final currentUser = supabase.auth.currentUser;
 
-    if (currentUser == null) {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/welcome');
-      }
-      return;
-    }
+       if (currentUser == null) {
+         if (mounted) {
+           Navigator.of(context).pushReplacementNamed('/welcome');
+         }
+         return;
+       }
 
-    final accountType = await Storage.getAccountType();
-    final userStorage = Provider.of<UserStorage>(context, listen: false);
+       final accountType = await Storage.getAccountType();
+       final userStorage = Provider.of<UserStorage>(context, listen: false);
 
-    try {
-      await userStorage.loadUser(
-        accountType == 'factory' ? AccountType.factory : AccountType.seller,
-      );
-    } catch (e) {
-      debugPrint('[main._checkAuthAndNavigate] Error: $e');
-    }
+       try {
+         await userStorage.loadUser(
+           accountType == 'factory' ? AccountType.factory : AccountType.seller,
+         );
+       } catch (e) {
+         debugPrint('[main._checkAuthAndNavigate] Error loading user: $e');
+       }
 
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/home');
-    }
-  }
+       if (mounted) {
+         Navigator.of(context).pushReplacementNamed('/home');
+       }
+     } catch (e) {
+       debugPrint('[main._checkAuthAndNavigate] Error: $e');
+       // If there's an error, go to welcome screen as fallback
+       if (mounted) {
+         Navigator.of(context).pushReplacementNamed('/welcome');
+       }
+     }
+   }
 
   @override
   Widget build(BuildContext context) {

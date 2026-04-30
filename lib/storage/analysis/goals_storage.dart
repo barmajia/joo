@@ -1,3 +1,4 @@
+import 'package:aurora/models/analysis/goals/goal_enums.dart';
 import 'package:aurora/models/analysis/goals/seller_goal.dart';
 import 'package:aurora/models/analysis/insights/actionable_insight.dart';
 import 'package:aurora/storage/storage.dart';
@@ -7,7 +8,7 @@ class GoalsStorage {
   static const String _achievementsKey = 'seller_achievements';
 
   static Future<List<SellerGoal>> getGoals(String sellerId) async {
-    final goalsData = await StorageService.getData<List>(_goalsKey);
+    final goalsData = await Storage.getData<List>(_goalsKey);
     if (goalsData == null) return [];
 
     return goalsData
@@ -18,7 +19,7 @@ class GoalsStorage {
   }
 
   static Future<SellerGoal?> getGoal(String goalId) async {
-    final goalsData = await StorageService.getData<List>(_goalsKey);
+    final goalsData = await Storage.getData<List>(_goalsKey);
     if (goalsData == null) return null;
 
     for (final data in goalsData) {
@@ -31,23 +32,28 @@ class GoalsStorage {
   }
 
   static Future<void> saveGoal(SellerGoal goal) async {
-    final goalsData = await StorageService.getData<List>(_goalsKey) ?? [];
-    
+    final goalsData = await Storage.getData<List>(_goalsKey) ?? [];
+
     // Remove existing goal with same ID
-    goalsData.removeWhere((item) => 
-      item is Map<String, dynamic> && item['id'] == goal.id
+    goalsData.removeWhere(
+      (item) => item is Map<String, dynamic> && item['id'] == goal.id,
     );
-    
+
     goalsData.add(goal.toMap());
-    await StorageService.saveData(_goalsKey, goalsData);
+    await Storage.saveData(_goalsKey, goalsData);
   }
 
-  static Future<void> updateGoalProgress(String goalId, double currentValue) async {
+  static Future<void> updateGoalProgress(
+    String goalId,
+    double currentValue,
+  ) async {
     final goal = await getGoal(goalId);
     if (goal != null) {
       final updatedGoal = goal.copyWith(
         currentValue: currentValue,
-        status: currentValue >= goal.targetValue ? GoalStatus.achieved : GoalStatus.active,
+        status: currentValue >= goal.targetValue
+            ? GoalStatus.achieved
+            : GoalStatus.active,
         updatedAt: DateTime.now(),
       );
       await saveGoal(updatedGoal);
@@ -55,15 +61,15 @@ class GoalsStorage {
   }
 
   static Future<void> deleteGoal(String goalId) async {
-    final goalsData = await StorageService.getData<List>(_goalsKey) ?? [];
-    goalsData.removeWhere((item) => 
-      item is Map<String, dynamic> && item['id'] == goalId
+    final goalsData = await Storage.getData<List>(_goalsKey) ?? [];
+    goalsData.removeWhere(
+      (item) => item is Map<String, dynamic> && item['id'] == goalId,
     );
-    await StorageService.saveData(_goalsKey, goalsData);
+    await Storage.saveData(_goalsKey, goalsData);
   }
 
   static Future<List<Achievement>> getAchievements(String sellerId) async {
-    final achievementsData = await StorageService.getData<List>(_achievementsKey);
+    final achievementsData = await Storage.getData<List>(_achievementsKey);
     if (achievementsData == null) return [];
 
     return achievementsData
@@ -74,26 +80,30 @@ class GoalsStorage {
   }
 
   static Future<void> awardAchievement(Achievement achievement) async {
-    final achievementsData = await StorageService.getData<List>(_achievementsKey) ?? [];
-    
+    final achievementsData =
+        await Storage.getData<List>(_achievementsKey) ?? [];
+
     // Check if already awarded
-    final exists = achievementsData.any((item) => 
-      item is Map<String, dynamic> && item['id'] == achievement.id
+    final exists = achievementsData.any(
+      (item) => item is Map<String, dynamic> && item['id'] == achievement.id,
     );
-    
+
     if (!exists) {
       achievementsData.add(achievement.toMap());
-      await StorageService.saveData(_achievementsKey, achievementsData);
+      await Storage.saveData(_achievementsKey, achievementsData);
     }
   }
 
   static Future<int> getTotalPoints(String sellerId) async {
     final achievements = await getAchievements(sellerId);
-    return achievements.fold(0, (sum, achievement) => sum + achievement.points);
+    return achievements.fold<int>(
+      0,
+      (sum, achievement) => sum + achievement.points,
+    );
   }
 
   static Future<void> clearAll() async {
-    await StorageService.removeData(_goalsKey);
-    await StorageService.removeData(_achievementsKey);
+    await Storage.removeData(_goalsKey);
+    await Storage.removeData(_achievementsKey);
   }
 }

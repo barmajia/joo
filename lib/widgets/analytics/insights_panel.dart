@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:aurora/models/analysis/insights/actionable_insight.dart';
+import 'package:aurora/models/analysis/insights/insight_enums.dart';
 import 'package:aurora/storage/analysis/insights_storage.dart';
 
 class InsightsPanel extends StatefulWidget {
@@ -364,12 +365,15 @@ class _InsightsPanelState extends State<InsightsPanel> {
         color = Colors.blue;
         label = 'LOW';
         break;
+      default:
+        color = Colors.grey;
+        label = 'UNKNOWN';
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
+        color: color.withOpacity(0.2),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -393,6 +397,8 @@ class _InsightsPanelState extends State<InsightsPanel> {
         return Colors.amber;
       case InsightPriority.low:
         return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -425,7 +431,7 @@ class _InsightsPanelState extends State<InsightsPanel> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.dismiss),
+              leading: const Icon(Icons.close),
               title: const Text('Dismiss'),
               onTap: () {
                 Navigator.pop(context);

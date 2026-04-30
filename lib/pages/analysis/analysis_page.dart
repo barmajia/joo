@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/analysis/analytics.dart';
 import 'package:aurora/models/analysis/enums.dart';
+import 'package:aurora/models/analysis/goals/goal_enums.dart';
+import 'package:aurora/models/analysis/goals/seller_goal.dart';
 import 'package:aurora/services/analysis_engine.dart';
+import 'package:aurora/services/performance/insights_engine.dart';
 import 'package:aurora/widgets/analytics/goal_widgets.dart';
 import 'package:aurora/widgets/analytics/insights_panel.dart';
 import 'package:aurora/storage/analysis/goals_storage.dart';
 import 'package:aurora/storage/analysis/insights_storage.dart';
-import 'package:aurora/models/analysis/goals/seller_goal.dart';
-import 'package:aurora/services/performance/insights_engine.dart';
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
@@ -76,7 +77,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
       
       await _insightsEngine.generateInsights(
         sellerId: user.id,
-        analyticsSnapshot: _snapshot!,
+        snapshot: _snapshot!,
       );
       
       if (mounted) {

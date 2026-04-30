@@ -28,7 +28,7 @@ class SellerGoal {
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+       updatedAt = updatedAt ?? DateTime.now();
 
   double get progressPercentage {
     if (targetValue == 0) return 0;
@@ -63,9 +63,15 @@ class SellerGoal {
       type: GoalTypeExtension.fromString(map['type'] as String? ?? 'revenue'),
       targetValue: _parseNumeric(map['target_value']),
       currentValue: _parseNumeric(map['current_value'] ?? 0),
-      startDate: DateTime.tryParse(map['start_date']?.toString() ?? '') ?? DateTime.now(),
-      endDate: DateTime.tryParse(map['end_date']?.toString() ?? '') ?? DateTime.now(),
-      status: GoalStatusExtension.fromString(map['status'] as String? ?? 'active'),
+      startDate:
+          DateTime.tryParse(map['start_date']?.toString() ?? '') ??
+          DateTime.now(),
+      endDate:
+          DateTime.tryParse(map['end_date']?.toString() ?? '') ??
+          DateTime.now(),
+      status: GoalStatusExtension.fromString(
+        map['status'] as String? ?? 'active',
+      ),
       description: map['description'] as String?,
       metadata: map['metadata'] is Map<String, dynamic>
           ? map['metadata'] as Map<String, dynamic>
@@ -166,7 +172,9 @@ class Achievement {
       badgeIcon: map['badge_icon'] as String? ?? '',
       category: map['category'] as String? ?? '',
       points: map['points'] as int? ?? 0,
-      earnedAt: DateTime.tryParse(map['earned_at']?.toString() ?? '') ?? DateTime.now(),
+      earnedAt:
+          DateTime.tryParse(map['earned_at']?.toString() ?? '') ??
+          DateTime.now(),
       metadata: map['metadata'] is Map<String, dynamic>
           ? map['metadata'] as Map<String, dynamic>
           : null,
@@ -233,7 +241,7 @@ class Achievement {
         id: 'revenue_king',
         sellerId: '',
         title: 'Revenue King',
-        description: 'Earned $10,000 in total revenue',
+        description: "Earned \$10,000 in total revenue",
         badgeIcon: '👑',
         category: 'revenue',
         points: 150,

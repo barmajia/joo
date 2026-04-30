@@ -1,6 +1,8 @@
 import 'package:aurora/models/analysis/analytics.dart';
+import 'package:aurora/models/analysis/goals/goal_enums.dart';
 import 'package:aurora/models/analysis/goals/seller_goal.dart';
 import 'package:aurora/models/analysis/insights/actionable_insight.dart';
+import 'package:aurora/models/analysis/insights/insight_enums.dart';
 import 'package:aurora/storage/analysis/goals_storage.dart';
 import 'package:aurora/storage/analysis/insights_storage.dart';
 import 'package:flutter/material.dart';

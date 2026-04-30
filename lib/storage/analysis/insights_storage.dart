@@ -5,7 +5,7 @@ class InsightsStorage {
   static const String _insightsKey = 'actionable_insights';
 
   static Future<List<ActionableInsight>> getInsights(String sellerId) async {
-    final insightsData = await StorageService.getData<List>(_insightsKey);
+    final insightsData = await Storage.getData<List>(_insightsKey);
     if (insightsData == null) return [];
 
     return insightsData
@@ -16,7 +16,7 @@ class InsightsStorage {
   }
 
   static Future<ActionableInsight?> getInsight(String insightId) async {
-    final insightsData = await StorageService.getData<List>(_insightsKey);
+    final insightsData = await Storage.getData<List>(_insightsKey);
     if (insightsData == null) return null;
 
     for (final data in insightsData) {
@@ -29,7 +29,7 @@ class InsightsStorage {
   }
 
   static Future<void> saveInsight(ActionableInsight insight) async {
-    final insightsData = await StorageService.getData<List>(_insightsKey) ?? [];
+    final insightsData = await Storage.getData<List>(_insightsKey) ?? [];
     
     // Remove existing insight with same ID
     insightsData.removeWhere((item) => 
@@ -37,7 +37,7 @@ class InsightsStorage {
     );
     
     insightsData.add(insight.toMap());
-    await StorageService.saveData(_insightsKey, insightsData);
+    await Storage.saveData(_insightsKey, insightsData);
   }
 
   static Future<void> markAsRead(String insightId) async {
@@ -57,15 +57,15 @@ class InsightsStorage {
   }
 
   static Future<void> deleteInsight(String insightId) async {
-    final insightsData = await StorageService.getData<List>(_insightsKey) ?? [];
+    final insightsData = await Storage.getData<List>(_insightsKey) ?? [];
     insightsData.removeWhere((item) => 
       item is Map<String, dynamic> && item['id'] == insightId
     );
-    await StorageService.saveData(_insightsKey, insightsData);
+    await Storage.saveData(_insightsKey, insightsData);
   }
 
   static Future<void> clearExpiredInsights() async {
-    final insightsData = await StorageService.getData<List>(_insightsKey) ?? [];
+    final insightsData = await Storage.getData<List>(_insightsKey) ?? [];
     final now = DateTime.now();
     
     insightsData.removeWhere((item) {
@@ -77,7 +77,7 @@ class InsightsStorage {
       return expiresAt != null && now.isAfter(expiresAt);
     });
     
-    await StorageService.saveData(_insightsKey, insightsData);
+    await Storage.saveData(_insightsKey, insightsData);
   }
 
   static Future<int> getUnreadCount(String sellerId) async {
@@ -86,6 +86,6 @@ class InsightsStorage {
   }
 
   static Future<void> clearAll() async {
-    await StorageService.removeData(_insightsKey);
+    await Storage.removeData(_insightsKey);
   }
 }

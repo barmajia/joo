@@ -174,6 +174,7 @@ class _BillFormPageState extends State<BillFormPage> {
                 ),
               ),
               const SizedBox(height: 16),
+              // ignore: deprecated_member_use
               DropdownButtonFormField<PaymentMethod>(
                 value: _paymentMethod,
                 decoration: const InputDecoration(

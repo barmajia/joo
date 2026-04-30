@@ -28,6 +28,29 @@ class Storage {
     }
   }
 
+  /// Generic method to save data as JSON
+  static Future<void> saveData(String key, dynamic value) async {
+    final jsonString = jsonEncode(value);
+    await _saveString(key, jsonString);
+  }
+
+  /// Generic method to get data and decode JSON
+  static Future<T?> getData<T>(String key) async {
+    final jsonString = await _getString(key);
+    if (jsonString == null || jsonString.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(jsonString);
+      return decoded as T;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Remove data for a key
+  static Future<void> removeData(String key) async {
+    await _prefs.remove(key);
+  }
+
   static Future<void> saveThemeIndex(int index) async {
     await _saveString('theme_index', index.toString());
   }

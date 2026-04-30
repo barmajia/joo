@@ -1,22 +1,29 @@
 import 'dart:convert';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/scheduler.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:aurora/storage/storage.dart';
-import 'package:aurora/models/product/product.dart';
+import 'package:aurora/models/product/productModel.dart';
+import 'package:aurora/storage/product_vault_storage.dart';
 
 class ProductsDB {
   final SupabaseClient _client = Supabase.instance.client;
+  late final ProductVaultStorage _productVault;
+
+  ProductsDB() {
+    _init();
+  }
+
+  Future<void> _init() async {
+    _productVault = await ProductVaultStorage.getInstance();
+  }
 
   // Get all products for current seller from vault (high speed)
-  Future<List<AuroraProduct>> getProductsFromVault() async {
+  Future<List<Product>> getProductsFromVault() async {
     try {
-      final data = await Storage.getSellerData();
-      if (data == null || data.isEmpty) return [];
-      final List<dynamic> decoded = jsonDecode(data);
-      return decoded
-          .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return [];
+
+      await _init();
+      return _productVault.getSellerProducts(userId);
     } catch (e) {
       debugPrint('[ProductsDB.getProductsFromVault] Error: $e');
       return [];
@@ -24,54 +31,59 @@ class ProductsDB {
   }
 
   // Save products to vault (high speed access)
-  Future<void> saveProductsToVault(List<AuroraProduct> products) async {
+  Future<void> saveProductsToVault(List<Product> products) async {
     try {
-      final jsonStr = jsonEncode(products.map((e) => e.toJson()).toList());
-      await Storage.saveSellerData(jsonStr);
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      await _init();
+      await _productVault.saveSellerProducts(userId, products);
     } catch (e) {
-      debugPrint('[ProductsDB.updateProduct] Error: $e');
-      return null;
+      debugPrint('[ProductsDB.saveProductsToVault] Error: $e');
     }
   }
 
   // Update product in Supabase and vault
-  Future<AuroraProduct?> updateProduct(
-    String asin,
+  Future<Product?> updateProduct(
+    String productId,
     Map<String, dynamic> updates,
   ) async {
     try {
       final response = await _client
           .from('products')
           .update(updates)
-          .eq('asin', asin)
+          .eq('id', productId)
           .select()
           .single();
 
-      final updatedProduct = AuroraProduct.fromJson(response);
+      final updatedProduct = Product.fromJson(response);
 
       // Update vault cache
-      final cached = await getProductsFromVault();
-      final index = cached.indexWhere((p) => p.asin == asin);
-      if (index != -1) {
-        cached[index] = updatedProduct;
-        await saveProductsToVault(cached);
-      }
+      await _init();
+      await _productVault.saveProduct(productId, updatedProduct);
 
       return updatedProduct;
     } catch (e) {
+      debugPrint('[ProductsDB.updateProduct] Error: $e');
       return null;
     }
   }
 
   // Delete product from Supabase and vault
-  Future<bool> deleteProduct(String asin) async {
+  Future<bool> deleteProduct(String productId) async {
     try {
-      await _client.from('products').delete().eq('asin', asin);
+      await _client.from('products').delete().eq('id', productId);
 
       // Update vault cache
-      final cached = await getProductsFromVault();
-      cached.removeWhere((p) => p.asin == asin);
-      await saveProductsToVault(cached);
+      await _init();
+      await _productVault.deleteProduct(productId);
+
+      final userId = _client.auth.currentUser?.id;
+      if (userId != null) {
+        final cached = _productVault.getSellerProducts(userId);
+        cached.removeWhere((p) => p.id == productId);
+        await _productVault.saveSellerProducts(userId, cached);
+      }
 
       return true;
     } catch (e) {
@@ -81,7 +93,7 @@ class ProductsDB {
   }
 
   // Search products using edge function
-  Future<List<AuroraProduct>> searchProducts({
+  Future<List<Product>> searchProducts({
     String query = '',
     String? status,
     int limit = 100,
@@ -102,7 +114,7 @@ class ProductsDB {
 
       final data = jsonDecode(response.data as String) as List;
       return data
-          .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
       debugPrint('[ProductsDB.searchProducts] Error: $e');
@@ -110,25 +122,35 @@ class ProductsDB {
     }
   }
 
-  // Get single product by ASIN
-  Future<AuroraProduct?> getProductByAsin(String asin) async {
+  // Get single product by ID
+  Future<Product?> getProductById(String productId) async {
     try {
+      // Check vault first
+      await _init();
+      final cachedProduct = _productVault.getProduct(productId);
+      if (cachedProduct != null) return cachedProduct;
+
+      // Fallback to Supabase
       final response = await _client
           .from('products')
           .select()
-          .eq('asin', asin)
+          .eq('id', productId)
           .maybeSingle();
 
       if (response == null) return null;
-      return AuroraProduct.fromJson(response);
+
+      final product = Product.fromJson(response);
+      await _productVault.saveProduct(productId, product);
+
+      return product;
     } catch (e) {
-      debugPrint('[ProductsDB.getProductByAsin] Error: $e');
+      debugPrint('[ProductsDB.getProductById] Error: $e');
       return null;
     }
   }
 
   // Get products by status (for filtering)
-  Future<List<AuroraProduct>> getProductsByStatus(String status) async {
+  Future<List<Product>> getProductsByStatus(String status) async {
     try {
       final response = await _client
           .from('products')
@@ -137,7 +159,7 @@ class ProductsDB {
           .order('created_at', ascending: false);
 
       return response
-          .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
       debugPrint('[ProductsDB.getProductsByStatus] Error: $e');
@@ -146,7 +168,7 @@ class ProductsDB {
   }
 
   // Get low stock products (quantity <= 10)
-  Future<List<AuroraProduct>> getLowStockProducts(String sellerId) async {
+  Future<List<Product>> getLowStockProducts(String sellerId) async {
     try {
       final response = await _client
           .from('products')
@@ -156,11 +178,34 @@ class ProductsDB {
           .order('quantity', ascending: true);
 
       return response
-          .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
       debugPrint('[ProductsDB.getLowStockProducts] Error: $e');
       return [];
+    }
+  }
+
+  // Refresh vault with latest data from Supabase
+  Future<void> refreshVault() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final response = await _client
+          .from('products')
+          .select()
+          .eq('seller_id', userId)
+          .order('created_at', ascending: false);
+
+      final products = response
+          .map((e) => Product.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      await _init();
+      await _productVault.refreshSellerProducts(userId, products);
+    } catch (e) {
+      debugPrint('[ProductsDB.refreshVault] Error: $e');
     }
   }
 }
