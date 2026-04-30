@@ -1092,39 +1092,18 @@ class _AddProductPageState extends State<AddProductPage> {
             ),
             const SizedBox(height: 12),
 
+            // Image grid / placeholder
             if (totalImages == 0)
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  border: Border.all(color: theme.dividerColor),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.add_photo_alternate_outlined,
-                      size: 40,
-                      color: theme.hintColor,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No images added yet',
-                      style: TextStyle(color: theme.hintColor),
-                    ),
-                  ],
-                ),
-              )
+              _buildEmptyImageSlot()
             else
               SizedBox(
                 height: 100,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: totalImages + 1, // +1 for add button
+                  itemCount: totalImages + 1,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     if (index == totalImages) {
-                      // Add button
                       return _buildAddImageButton();
                     }
 
@@ -1142,24 +1121,34 @@ class _AddProductPageState extends State<AddProductPage> {
                 ),
               ),
 
-            if (totalImages > 0) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  ElevatedButton.icon(
+            const SizedBox(height: 12),
+
+            // Camera / Gallery buttons - always visible
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
                     onPressed: () => _pickImages(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt),
+                    icon: const Icon(Icons.camera_alt, size: 18),
                     label: const Text('Camera'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
                     onPressed: () => _pickImages(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library),
+                    icon: const Icon(Icons.photo_library, size: 18),
                     label: const Text('Gallery'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
 
             if (_isUploadingImages) ...[
               const SizedBox(height: 12),
@@ -1178,6 +1167,42 @@ class _AddProductPageState extends State<AddProductPage> {
     );
   }
 
+  Widget _buildEmptyImageSlot() {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: () => _pickImages(ImageSource.gallery),
+      child: Container(
+        height: 100,
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.dividerColor),
+          borderRadius: BorderRadius.circular(12),
+          color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_photo_alternate_outlined,
+                size: 32,
+                color: theme.primaryColor,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tap to add images',
+                style: TextStyle(
+                  color: theme.primaryColor,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAddImageButton() {
     final theme = Theme.of(context);
     return GestureDetector(
@@ -1186,18 +1211,18 @@ class _AddProductPageState extends State<AddProductPage> {
         width: 100,
         height: 100,
         decoration: BoxDecoration(
-          border: Border.all(color: theme.dividerColor, width: 2),
+          border: Border.all(color: theme.primaryColor, width: 2, style: BorderStyle.solid),
           borderRadius: BorderRadius.circular(8),
-          color: theme.cardColor,
+          color: theme.colorScheme.primaryContainer.withOpacity(0.3),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add, size: 32, color: theme.primaryColor),
+            Icon(Icons.add, size: 28, color: theme.primaryColor),
             const SizedBox(height: 4),
             Text(
               'Add',
-              style: TextStyle(color: theme.primaryColor, fontSize: 12),
+              style: TextStyle(color: theme.primaryColor, fontSize: 11),
             ),
           ],
         ),
