@@ -26,7 +26,9 @@ class _AppLockScreenState extends State<AppLockScreen> {
     super.didChangeDependencies();
     if (!_hasChecked) {
       _hasChecked = true;
-      _checkLockState();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _checkLockState();
+      });
     }
   }
 

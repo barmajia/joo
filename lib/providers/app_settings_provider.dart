@@ -73,11 +73,13 @@ class AppSettingsProvider extends ChangeNotifier {
   }
 
   void setUnlocked() {
+    if (_isUnlocked) return;
     _isUnlocked = true;
     notifyListeners();
   }
 
   void lockApp() {
+    if (!_isUnlocked) return;
     _isUnlocked = false;
     notifyListeners();
   }

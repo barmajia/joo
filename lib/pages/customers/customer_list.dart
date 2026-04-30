@@ -23,6 +23,7 @@ class CustomerListPage extends StatefulWidget {
 
 class _CustomerListPageState extends State<CustomerListPage> {
   final CustomerService _customerService = CustomerService();
+  final OrderService _orderService = OrderService();
   List<Customer> _customers = [];
   Map<String, List<Order>> _customerOrders = {};
   bool _isLoading = true;
@@ -225,28 +226,29 @@ class _CustomerListPageState extends State<CustomerListPage> {
     );
   }
 
-  Widget _buildGridView() {
-    return RefreshIndicator(
-      onRefresh: _loadCustomers,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.85,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
-        itemCount: _filteredCustomers.length,
-        itemBuilder: (context, index) {
-          final customer = _filteredCustomers[index];
-          return _CustomerGridTile(
-            customer: customer,
-            onTap: () => _openCustomerBills(customer),
-          );
-        },
+Widget _buildGridView() {
+  return RefreshIndicator(
+    onRefresh: _loadCustomers,
+    child: GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
-    );
-  }
+      itemCount: _filteredCustomers.length,
+      itemBuilder: (context, index) {
+        final customer = _filteredCustomers[index];
+        return _CustomerGridTile(
+          customer: customer,
+          onTap: () => _openCustomerBills(customer),
+          onLongPress: () => _deleteCustomerAndBills(customer),
+        );
+      },
+    ),
+  );
+}
 
   Widget _buildFAB() {
     return FloatingActionButton(
@@ -423,14 +425,80 @@ class _CustomerListPageState extends State<CustomerListPage> {
     );
   }
 
-  void _openCustomerBills(Customer customer) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CustomerBillsPage(customer: customer),
-      ),
-    ).then((_) => _loadCustomers());
-  }
+   void _openCustomerBills(Customer customer) {
+     Navigator.push(
+       context,
+       MaterialPageRoute(
+         builder: (context) => CustomerBillsPage(customer: customer),
+       ),
+     ).then((_) => _loadCustomers());
+   }
+
+   Future<void> _deleteCustomerAndBills(Customer customer) async {
+     // Show confirmation dialog
+     final confirm = await showDialog<bool>(
+       context: context,
+       builder: (context) => AlertDialog(
+         title: const Text('Delete Customer'),
+         content: Text(
+           'Are you sure you want to delete "${customer.name}" and all their bills? This action cannot be undone.',
+         ),
+         actions: [
+           TextButton(
+             onPressed: () => Navigator.pop(context, false),
+             child: const Text('Cancel'),
+           ),
+           ElevatedButton(
+             onPressed: () => Navigator.pop(context, true),
+             style: ElevatedButton.styleFrom(
+               backgroundColor: Colors.red,
+             ),
+             child: const Text('Delete'),
+           ),
+         ],
+       ),
+     );
+
+     if (confirm != true) return;
+
+     // Set loading state
+     if (!mounted) return;
+     setState(() => _isLoading = true);
+
+     try {
+       // Delete all bills for this customer first (this will restore product quantities)
+       final customerBills = _getCustomerOrders(customer.id);
+       for (final bill in customerBills) {
+         await _orderService.deleteOrder(bill.id);
+       }
+
+       // Delete the customer
+       await _customerService.deleteCustomer(customer.id);
+
+       if (mounted) {
+         // Reload customers
+         await _loadCustomers();
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text('${customer.name} and their bills have been deleted'),
+             backgroundColor: Colors.green,
+           ),
+         );
+       }
+     } catch (e) {
+       debugPrint('[CustomerList._deleteCustomerAndBills] Error: $e');
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text('Error deleting customer: $e'),
+             backgroundColor: Colors.red,
+           ),
+         );
+       }
+     } finally {
+       if (mounted) setState(() => _isLoading = false);
+     }
+   }
 
   void _showSearch() {
     showSearch(
@@ -446,14 +514,20 @@ class _CustomerListPageState extends State<CustomerListPage> {
 class _CustomerGridTile extends StatelessWidget {
   final Customer customer;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
-  const _CustomerGridTile({required this.customer, required this.onTap});
+  const _CustomerGridTile({
+    required this.customer, 
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(

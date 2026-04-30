@@ -99,13 +99,14 @@ class _CustomerBillsPageState extends State<CustomerBillsPage> {
                   child: ListView.builder(
                     padding: const EdgeInsets.all(8),
                     itemCount: _filteredBills.length,
-                    itemBuilder: (context, index) {
-                      final order = _filteredBills[index];
-                      return _BillCard(
-                        order: order,
-                        onTap: () => _viewBillDetail(order),
-                      );
-                    },
+itemBuilder: (context, index) {
+                       final order = _filteredBills[index];
+                       return _BillCard(
+                         order: order,
+                         onTap: () => _viewBillDetail(order),
+                         onLongPress: () => _deleteBill(order),
+                       );
+                     },
                   ),
                 ),
       floatingActionButton: FloatingActionButton(
@@ -148,19 +149,84 @@ class _CustomerBillsPageState extends State<CustomerBillsPage> {
     ).then((_) => _refreshBills());
   }
 
-  void _viewBillDetail(Order order) {
-    showDialog(
-      context: context,
-      builder: (context) => _BillDetailDialog(order: order),
-    );
-  }
+   void _viewBillDetail(Order order) {
+     showDialog(
+       context: context,
+       builder: (context) => _BillDetailDialog(order: order),
+     );
+   }
+
+   Future<void> _deleteBill(Order order) async {
+     // Show confirmation dialog
+     final confirm = await showDialog<bool>(
+       context: context,
+       builder: (context) => AlertDialog(
+         title: const Text('Delete Bill'),
+         content: Text(
+           'Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.',
+         ),
+         actions: [
+           TextButton(
+             onPressed: () => Navigator.pop(context, false),
+             child: const Text('Cancel'),
+           ),
+           ElevatedButton(
+             onPressed: () => Navigator.pop(context, true),
+             style: ElevatedButton.styleFrom(
+               backgroundColor: Colors.red,
+             ),
+             child: const Text('Delete'),
+           ),
+         ],
+       ),
+     );
+
+     if (confirm != true) return;
+
+     // Set loading state
+     if (!mounted) return;
+     setState(() => _isLoading = true);
+
+     try {
+       // Delete the bill (this will restore product quantities via OrderService.deleteOrder)
+       await _orderService.deleteOrder(order.id);
+
+       if (mounted) {
+         // Reload bills
+         await _loadBills();
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text('Bill deleted and product quantities restored'),
+             backgroundColor: Colors.green,
+           ),
+         );
+       }
+     } catch (e) {
+       debugPrint('[CustomerBillsPage._deleteBill] Error: $e');
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text('Error deleting bill: $e'),
+             backgroundColor: Colors.red,
+           ),
+         );
+       }
+     } finally {
+       if (mounted) setState(() => _isLoading = false);
+     }
+   }
 }
 
 class _BillCard extends StatelessWidget {
   final Order order;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
-  const _BillCard({required this.order, required this.onTap});
+  const _BillCard({
+    required this.order, 
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +234,7 @@ class _BillCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -250,12 +317,13 @@ class _BillCard extends StatelessWidget {
       ),
     );
   }
+}
 
   String _formatDate(DateTime date) {
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
-}
+  
 
 class _StatusBadge extends StatelessWidget {
   final OrderStatus status;
