@@ -13,10 +13,12 @@ class CustomerStorage {
   }
 
   static Future<void> _saveString(String key, String value) async {
+    await init();
     await _prefs.setString(key, value);
   }
 
   static Future<String?> _getString(String key) async {
+    await init();
     try {
       return _prefs.getString(key);
     } catch (e) {
@@ -25,11 +27,13 @@ class CustomerStorage {
   }
 
   static Future<void> saveCustomers(List<Customer> customers) async {
+    await init();
     final list = customers.map((c) => c.toMap()).toList();
     await _saveString('customers_list', jsonEncode(list));
   }
 
   static Future<List<Customer>> getCustomers() async {
+    await init();
     final value = await _getString('customers_list');
     if (value == null || value.isEmpty) return [];
     try {
@@ -73,6 +77,7 @@ class CustomerStorage {
   }
 
   static Future<void> clearCustomers() async {
+    await init();
     await _prefs.remove('customers_list');
   }
 }

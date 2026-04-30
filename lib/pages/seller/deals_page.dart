@@ -45,6 +45,7 @@ class _DealsPageState extends State<DealsPage> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('[DealsPage._loadDeals] Error: $e');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -213,6 +214,7 @@ class _AddDealPageState extends State<AddDealPage> {
       _products = await service.getSellerProducts(user.id);
       setState(() {});
     } catch (e) {
+      debugPrint('[DealsPage._loadProducts] Error: $e');
       // Handle error
     }
   }
@@ -246,6 +248,7 @@ class _AddDealPageState extends State<AddDealPage> {
         Navigator.pop(context);
       }
     } catch (e) {
+      debugPrint('[DealsPage._saveDeal] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,

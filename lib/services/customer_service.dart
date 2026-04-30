@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/customers/customermodel.dart';
 import 'package:aurora/storage/customer_storage.dart';
@@ -22,6 +23,7 @@ class CustomerService {
       await CustomerStorage.saveCustomers(customers);
       return customers;
     } catch (e) {
+      debugPrint('[CustomerService.fetchCustomers] Error: $e');
       return await CustomerStorage.getCustomers();
     }
   }
@@ -38,6 +40,7 @@ class CustomerService {
         return Customer.fromMap(response);
       }
     } catch (e) {
+      debugPrint('[CustomerService.fetchCustomerById] Error: $e');
       // fallback to cache
     }
     return null;
@@ -57,6 +60,7 @@ class CustomerService {
         return newCustomer;
       }
     } catch (e) {
+      debugPrint('[CustomerService.createCustomer] Error: $e');
       // fallback to local
       await CustomerStorage.addCustomer(customer);
     }
@@ -78,6 +82,7 @@ class CustomerService {
         return updated;
       }
     } catch (e) {
+      debugPrint('[CustomerService.updateCustomer] Error: $e');
       await CustomerStorage.updateCustomer(customer);
     }
     return customer;
@@ -89,18 +94,23 @@ class CustomerService {
           .from('customers')
           .delete()
           .eq('id', customerId);
+      await CustomerStorage.deleteCustomer(customerId);
     } catch (e) {
-      // continue with local delete
+      debugPrint('[CustomerService.deleteCustomer] Error: $e');
+      rethrow;
     }
-    await CustomerStorage.deleteCustomer(customerId);
   }
 
   Future<List<Customer>> searchCustomers(String sellerId, String query) async {
     final customers = await fetchCustomers(sellerId);
     final lowerQuery = query.toLowerCase();
-    return customers.where((c) =>
-        c.name.toLowerCase().contains(lowerQuery) ||
-        c.phone.contains(lowerQuery) ||
-        (c.email?.toLowerCase().contains(lowerQuery) ?? false)).toList();
+    return customers
+        .where(
+          (c) =>
+              c.name.toLowerCase().contains(lowerQuery) ||
+              c.phone.contains(lowerQuery) ||
+              (c.email?.toLowerCase().contains(lowerQuery) ?? false),
+        )
+        .toList();
   }
 }

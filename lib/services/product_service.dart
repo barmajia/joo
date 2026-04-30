@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/product/productModel.dart';
 import 'package:aurora/models/product/product_deal.dart';
@@ -17,6 +18,7 @@ class ProductService {
 
       return (response as List).map((json) => Product.fromJson(json)).toList();
     } catch (e) {
+      debugPrint('[ProductService.getSellerProducts] Error: $e');
       throw Exception('Failed to load products: $e');
     }
   }
@@ -31,6 +33,7 @@ class ProductService {
 
       return Product.fromJson(response);
     } catch (e) {
+      debugPrint('[ProductService.getProductById] Error: $e');
       throw Exception('Failed to load product: $e');
     }
   }
@@ -48,6 +51,7 @@ class ProductService {
           .map((json) => ProductDeal.fromJson(json))
           .toList();
     } catch (e) {
+      debugPrint('[ProductService.getProductDeals] Error: $e');
       throw Exception('Failed to load product deals: $e');
     }
   }
@@ -71,6 +75,7 @@ class ProductService {
       await _supabase.from('products').delete().eq('asin', asin);
       return true;
     } catch (e) {
+      debugPrint('[ProductService.deleteProduct] Error: $e');
       return false;
     }
   }

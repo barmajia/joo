@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/storage/storage.dart';
 import 'package:aurora/models/product/product.dart';
@@ -16,6 +18,7 @@ class ProductsDB {
           .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      debugPrint('[ProductsDB.getProductsFromVault] Error: $e');
       return [];
     }
   }
@@ -25,50 +28,8 @@ class ProductsDB {
     try {
       final jsonStr = jsonEncode(products.map((e) => e.toJson()).toList());
       await Storage.saveSellerData(jsonStr);
-    } catch (e) {}
-  }
-
-  // Fetch products from Supabase by seller ID
-  Future<List<AuroraProduct>> fetchProductsBySeller(String sellerId) async {
-    try {
-      final response = await _client
-          .from('products')
-          .select()
-          .eq('seller_id', sellerId)
-          .order('created_at', ascending: false);
-
-      final products = response
-          .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
-          .toList();
-
-      // Cache to vault for high-speed access
-      await saveProductsToVault(products);
-
-      return products;
     } catch (e) {
-      // Fallback to vault data
-      return getProductsFromVault();
-    }
-  }
-
-  // Add new product to Supabase and vault
-  Future<AuroraProduct?> addProduct(AuroraProduct product) async {
-    try {
-      final response = await _client
-          .from('products')
-          .insert(product.toJson())
-          .select()
-          .single();
-
-      final newProduct = AuroraProduct.fromJson(response);
-
-      // Update vault cache
-      final cached = await getProductsFromVault();
-      cached.insert(0, newProduct);
-      await saveProductsToVault(cached);
-
-      return newProduct;
-    } catch (e) {
+      debugPrint('[ProductsDB.updateProduct] Error: $e');
       return null;
     }
   }
@@ -114,6 +75,7 @@ class ProductsDB {
 
       return true;
     } catch (e) {
+      debugPrint('[ProductsDB.deleteProduct] Error: $e');
       return false;
     }
   }
@@ -143,6 +105,7 @@ class ProductsDB {
           .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      debugPrint('[ProductsDB.searchProducts] Error: $e');
       return [];
     }
   }
@@ -159,6 +122,7 @@ class ProductsDB {
       if (response == null) return null;
       return AuroraProduct.fromJson(response);
     } catch (e) {
+      debugPrint('[ProductsDB.getProductByAsin] Error: $e');
       return null;
     }
   }
@@ -176,6 +140,7 @@ class ProductsDB {
           .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      debugPrint('[ProductsDB.getProductsByStatus] Error: $e');
       return [];
     }
   }
@@ -194,6 +159,7 @@ class ProductsDB {
           .map((e) => AuroraProduct.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      debugPrint('[ProductsDB.getLowStockProducts] Error: $e');
       return [];
     }
   }

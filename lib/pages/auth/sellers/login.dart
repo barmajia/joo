@@ -67,6 +67,8 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Login error: ${e.toString()}')));
+      print('${e}');
+      debugPrint('${e}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

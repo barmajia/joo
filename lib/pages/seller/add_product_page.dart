@@ -61,6 +61,7 @@ class _AddProductPageState extends State<AddProductPage> {
         setState(() => _selectedImages = images);
       }
     } catch (e) {
+      debugPrint('[AddProductPage._pickImages] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to pick images: $e')),
@@ -148,6 +149,7 @@ class _AddProductPageState extends State<AddProductPage> {
         }
       }
     } catch (e) {
+      debugPrint('[AddProductPage._saveProduct] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),

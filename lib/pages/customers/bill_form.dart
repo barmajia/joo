@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:aurora/models/customers/customermodel.dart';
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/enums.dart';
 import 'package:aurora/services/order_service.dart';
+import 'package:aurora/storage/userStorage.dart';
 
 class BillFormPage extends StatefulWidget {
   final Customer customer;
@@ -47,10 +49,13 @@ class _BillFormPageState extends State<BillFormPage> {
 
     setState(() => _isSaving = true);
     try {
+      final userStorage = Provider.of<UserStorage>(context, listen: false);
+      final sellerId = userStorage.currentUser?.id ?? '';
+
       final order = Order(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         userId: widget.customer.id,
-        sellerId: '',
+        sellerId: sellerId,
         subtotal: double.tryParse(_subtotalController.text) ?? 0,
         discount: double.tryParse(_discountController.text) ?? 0,
         tax: double.tryParse(_taxController.text) ?? 0,
@@ -61,7 +66,8 @@ class _BillFormPageState extends State<BillFormPage> {
         items: [],
       );
 
-      await _orderService.createOrder(order);
+      final created = await _orderService.createOrder(order);
+      if (created == null) throw Exception('Failed to create order');
 
       if (mounted) {
         Navigator.pop(context);
@@ -70,21 +76,21 @@ class _BillFormPageState extends State<BillFormPage> {
         );
       }
     } catch (e) {
+      debugPrint('[BillForm._saveBill] Error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
-    setState(() => _isSaving = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Bill'),
-      ),
+      appBar: AppBar(title: const Text('Create Bill')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -94,7 +100,10 @@ class _BillFormPageState extends State<BillFormPage> {
             children: [
               Text(
                 'Customer: ${widget.customer.name}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 20),
               TextFormField(
@@ -106,8 +115,9 @@ class _BillFormPageState extends State<BillFormPage> {
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (_) => setState(() {}),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Subtotal is required' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Subtotal is required'
+                    : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -156,7 +166,9 @@ class _BillFormPageState extends State<BillFormPage> {
                     Text(
                       'EGP ${_total.toStringAsFixed(2)}',
                       style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),

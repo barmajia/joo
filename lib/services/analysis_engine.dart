@@ -1,16 +1,14 @@
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/analytics.dart';
 import 'package:aurora/models/analysis/enums.dart';
-import 'package:aurora/services/order_service.dart';
 import 'package:aurora/storage/analysis/analytics_storage.dart';
 import 'package:aurora/storage/order_storage.dart';
+import 'package:flutter/material.dart';
 
 class AnalysisEngine {
   static final AnalysisEngine _instance = AnalysisEngine._internal();
   factory AnalysisEngine() => _instance;
   AnalysisEngine._internal();
-
-  final _orderService = OrderService();
 
   Future<AnalyticsSnapshot?> analyzeBills({
     required String sellerId,
@@ -43,6 +41,7 @@ class AnalysisEngine {
 
       return snapshot;
     } catch (e) {
+      debugPrint('[AnalysisEngine.analyzeBills] Error: $e');
       return null;
     }
   }

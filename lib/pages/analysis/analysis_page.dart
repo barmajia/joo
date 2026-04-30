@@ -57,6 +57,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('[AnalysisPage._loadAnalysis] Error: $e');
       if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
@@ -89,6 +90,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         );
       }
     } catch (e) {
+      debugPrint('[AnalysisPage._runNewAnalysis] Error: $e');
       if (!mounted) return;
       setState(() => _isAnalyzing = false);
       if (mounted) {

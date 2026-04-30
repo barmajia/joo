@@ -44,6 +44,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
         await _loadAllOrders(sellerId);
       }
     } catch (e) {
+      debugPrint('[CustomerList._loadCustomers] Error: $e');
       // use cached
     }
     setState(() => _isLoading = false);
@@ -56,6 +57,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
         final orders = await _orderService.fetchOrdersByCustomer(customer.id);
         _customerOrders[customer.id] = orders;
       } catch (e) {
+        debugPrint('[CustomerList._loadAllOrders] Error: $e');
         _customerOrders[customer.id] = [];
       }
     }

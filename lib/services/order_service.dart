@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/enums.dart';
@@ -12,17 +13,24 @@ class OrderService {
     try {
       final response = await Supabase.instance.client
           .from('orders')
-          .select()
+          .select('*, items:order_items(*)')
           .eq('seller_id', sellerId)
           .order('created_at', ascending: false);
 
-      final orders = response
-          .map((item) => Order.fromMap(item as Map<String, dynamic>))
-          .toList();
+      final orders = response.map((item) {
+        final orderMap = Map<String, dynamic>.from(item);
+        if (orderMap['items'] is List) {
+          orderMap['items'] = (orderMap['items'] as List)
+              .map((e) => OrderItem.fromMap(e as Map<String, dynamic>))
+              .toList();
+        }
+        return Order.fromMap(orderMap);
+      }).toList();
 
       await OrderStorage.saveOrders(orders);
       return orders;
     } catch (e) {
+      debugPrint('[OrderService.fetchOrdersBySeller] Error: $e');
       return await OrderStorage.getOrders();
     }
   }
@@ -31,16 +39,21 @@ class OrderService {
     try {
       final response = await Supabase.instance.client
           .from('orders')
-          .select()
+          .select('*, items:order_items(*)')
           .eq('user_id', customerId)
           .order('created_at', ascending: false);
 
-      final orders = response
-          .map((item) => Order.fromMap(item as Map<String, dynamic>))
-          .toList();
-
-      return orders;
+      return response.map((item) {
+        final orderMap = Map<String, dynamic>.from(item);
+        if (orderMap['items'] is List) {
+          orderMap['items'] = (orderMap['items'] as List)
+              .map((e) => OrderItem.fromMap(e as Map<String, dynamic>))
+              .toList();
+        }
+        return Order.fromMap(orderMap);
+      }).toList();
     } catch (e) {
+      debugPrint('[OrderService.fetchOrdersByCustomer] Error: $e');
       return await OrderStorage.getOrdersByCustomer(customerId);
     }
   }
@@ -49,56 +62,131 @@ class OrderService {
     try {
       final response = await Supabase.instance.client
           .from('orders')
-          .select()
+          .select('*, items:order_items(*)')
           .eq('id', orderId)
           .maybeSingle();
 
       if (response != null) {
-        return Order.fromMap(response);
+        final orderMap = Map<String, dynamic>.from(response);
+        if (orderMap['items'] is List) {
+          orderMap['items'] = (orderMap['items'] as List)
+              .map((e) => OrderItem.fromMap(e as Map<String, dynamic>))
+              .toList();
+        }
+        return Order.fromMap(orderMap);
       }
     } catch (e) {
-      // fallback
+      debugPrint('[OrderService.fetchOrderById] Error: $e');
+      return await OrderStorage.getOrderById(orderId);
     }
     return null;
   }
 
   Future<Order?> createOrder(Order order) async {
     try {
+      final orderMap = order.toMap();
+      final items = order.items;
+      orderMap.remove('items');
+
       final response = await Supabase.instance.client
           .from('orders')
-          .insert(order.toMap())
+          .insert(orderMap)
           .select()
           .maybeSingle();
 
       if (response != null) {
-        final newOrder = Order.fromMap(response);
-        await OrderStorage.addOrder(newOrder);
-        return newOrder;
+        final created = Order.fromMap(response);
+
+        if (items.isNotEmpty) {
+          await _insertOrderItems(created.id, items);
+        }
+
+        await OrderStorage.addOrder(created);
+        return created;
       }
     } catch (e) {
-      await OrderStorage.addOrder(order);
+      debugPrint('[OrderService.createOrder] Error: $e');
+      rethrow;
     }
-    return order;
+    return null;
   }
 
   Future<Order?> updateOrder(Order order) async {
     try {
+      final orderMap = order.toMap();
+      final items = order.items;
+      orderMap.remove('items');
+
       final response = await Supabase.instance.client
           .from('orders')
-          .update(order.toMap())
+          .update(orderMap)
           .eq('id', order.id)
           .select()
           .maybeSingle();
 
       if (response != null) {
         final updated = Order.fromMap(response);
+
+        await _deleteOrderItems(updated.id);
+        if (items.isNotEmpty) {
+          await _insertOrderItems(updated.id, items);
+        }
+
         await OrderStorage.updateOrder(updated);
         return updated;
       }
     } catch (e) {
+      debugPrint('[OrderService.updateOrder] Error: $e');
       await OrderStorage.updateOrder(order);
     }
     return order;
+  }
+
+  Future<void> _insertOrderItems(String orderId, List<OrderItem> items) async {
+    try {
+      final itemsData = items
+          .map((item) {
+            final map = item.toMap();
+            map['order_id'] = orderId;
+            if (map['id'] == null || map['id'].toString().isEmpty) {
+              map.remove('id');
+            }
+            return map;
+          })
+          .toList();
+
+      await Supabase.instance.client
+          .from('order_items')
+          .insert(itemsData);
+    } catch (e) {
+      debugPrint('[OrderService._insertOrderItems] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _deleteOrderItems(String orderId) async {
+    try {
+      await Supabase.instance.client
+          .from('order_items')
+          .delete()
+          .eq('order_id', orderId);
+    } catch (e) {
+      debugPrint('[OrderService._deleteOrderItems] Error: $e');
+    }
+  }
+
+  Future<void> deleteOrder(String orderId) async {
+    try {
+      await _deleteOrderItems(orderId);
+      await Supabase.instance.client
+          .from('orders')
+          .delete()
+          .eq('id', orderId);
+      await OrderStorage.deleteOrder(orderId);
+    } catch (e) {
+      debugPrint('[OrderService.deleteOrder] Error: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateOrderStatus(String orderId, String status) async {
@@ -132,12 +220,12 @@ class OrderService {
 
   Future<Map<String, dynamic>> getDashboardStats(String sellerId) async {
     final orders = await fetchOrdersBySeller(sellerId);
-    
+
     int totalOrders = orders.length;
     double totalRevenue = 0;
     int pendingOrders = 0;
     int completedOrders = 0;
-    
+
     for (final order in orders) {
       if (order.paymentStatus.value == 'completed') {
         totalRevenue += order.total;
@@ -154,7 +242,7 @@ class OrderService {
     };
   }
 
-  _parseStatus(String status) {
+  OrderStatus _parseStatus(String status) {
     switch (status) {
       case 'pending':
         return OrderStatus.pending;

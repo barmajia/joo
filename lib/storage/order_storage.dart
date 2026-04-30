@@ -14,10 +14,12 @@ class OrderStorage {
   }
 
   static Future<void> _saveString(String key, String value) async {
+    await init();
     await _prefs.setString(key, value);
   }
 
   static Future<String?> _getString(String key) async {
+    await init();
     try {
       return _prefs.getString(key);
     } catch (e) {
@@ -26,11 +28,13 @@ class OrderStorage {
   }
 
   static Future<void> saveOrders(List<Order> orders) async {
+    await init();
     final list = orders.map((o) => o.toMap()).toList();
     await _saveString('orders_list', jsonEncode(list));
   }
 
   static Future<List<Order>> getOrders() async {
+    await init();
     final value = await _getString('orders_list');
     if (value == null || value.isEmpty) return [];
     try {
@@ -84,6 +88,7 @@ class OrderStorage {
   }
 
   static Future<void> clearOrders() async {
+    await init();
     await _prefs.remove('orders_list');
   }
 

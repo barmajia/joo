@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:aurora/models/customers/customermodel.dart';
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/enums.dart';
+import 'package:aurora/services/customer_service.dart';
 import 'package:aurora/services/order_service.dart';
 
 class CustomerDetailPage extends StatefulWidget {
@@ -30,6 +31,7 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
     try {
       _orders = await _orderService.fetchOrdersByCustomer(widget.customer.id);
     } catch (e) {
+      debugPrint('[CustomerDetail._loadOrders] Error: $e');
       // empty
     }
     setState(() => _isLoading = false);
@@ -38,7 +40,15 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.customer.name)),
+      appBar: AppBar(
+        title: Text(widget.customer.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () => _deleteCustomer(context),
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -135,6 +145,48 @@ class _CustomerDetailPageState extends State<CustomerDetailPage> {
         Expanded(child: Text(value)),
       ],
     );
+  }
+
+  Future<void> _deleteCustomer(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: const Text(
+          'Are you sure you want to delete this customer? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final service = CustomerService();
+      await service.deleteCustomer(widget.customer.id);
+      if (context.mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Customer deleted')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 
   Widget _buildBillsSection() {

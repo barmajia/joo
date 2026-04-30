@@ -49,7 +49,7 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
     setState(() => _isSaving = true);
     try {
       final customer = Customer(
-        id: widget.customer?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: widget.customer?.id ?? '',
         name: _nameController.text,
         phone: _phoneController.text,
         email: _emailController.text.isNotEmpty ? _emailController.text : null,
@@ -75,6 +75,7 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
         );
       }
     } catch (e) {
+      debugPrint('[CustomerForm._saveCustomer] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -163,10 +164,64 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                       : Text(widget.customer == null ? 'Add' : 'Update'),
                 ),
               ),
+              if (widget.customer != null) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _isSaving ? null : _deleteCustomer,
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('Delete Customer'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _deleteCustomer() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: const Text('Are you sure? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await _customerService.deleteCustomer(widget.customer!.id);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Customer deleted')),
+        );
+      }
+    } catch (e) {
+      debugPrint('[CustomerForm._deleteCustomer] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 }

@@ -58,7 +58,9 @@ Future<void> _requestLocationPermission() async {
     }
     await Permission.location.request();
     await Permission.locationAlways.request();
-  } catch (e) {}
+  } catch (e) {
+    debugPrint('[main._requestLocationPermission] Error: $e');
+  }
 }
 
 class AuroraApp extends StatelessWidget {
@@ -126,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen> {
         accountType == 'factory' ? AccountType.factory : AccountType.seller,
       );
     } catch (e) {
-      debugPrint('Error loading user: $e');
+      debugPrint('[main._checkAuthAndNavigate] Error: $e');
     }
 
     if (mounted) {

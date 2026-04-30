@@ -66,6 +66,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('[ProductsPage._loadProducts] Error: $e');
       if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
@@ -413,6 +414,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
         }
       }
     } catch (e) {
+      debugPrint('[ProductsPage._deleteProduct] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),

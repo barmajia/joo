@@ -49,6 +49,7 @@ class ApiService extends ChangeNotifier {
         _sellerProfile = null;
       }
     } catch (e) {
+      debugPrint('[ApiService.fetchSellerProfile] Error: $e');
       _error = e.toString();
     } finally {
       _isLoading = false;
@@ -83,6 +84,7 @@ class ApiService extends ChangeNotifier {
         _factoryProfile = null;
       }
     } catch (e) {
+      debugPrint('[ApiService.fetchFactoryProfile] Error: $e');
       _error = e.toString();
     } finally {
       _isLoading = false;
@@ -110,6 +112,7 @@ class ApiService extends ChangeNotifier {
       }
       return null;
     } catch (e) {
+      debugPrint('[ApiService.getSellerById] Error: $e');
       return null;
     }
   }
@@ -127,6 +130,7 @@ class ApiService extends ChangeNotifier {
       }
       return null;
     } catch (e) {
+      debugPrint('[ApiService.getFactoryById] Error: $e');
       return null;
     }
   }
@@ -142,6 +146,7 @@ class ApiService extends ChangeNotifier {
 
       return response.map((e) => SellerProfile.fromMap(e)).toList();
     } catch (e) {
+      debugPrint('[ApiService.getAllSellers] Error: $e');
       return [];
     }
   }
@@ -157,6 +162,7 @@ class ApiService extends ChangeNotifier {
 
       return response.map((e) => FactoryProfile.fromMap(e)).toList();
     } catch (e) {
+      debugPrint('[ApiService.getAllFactories] Error: $e');
       return [];
     }
   }
