@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:aurora/storage/userStorage.dart';
 import 'package:aurora/users/account_type.dart';
+import 'package:aurora/l10n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -120,14 +121,15 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _logout() async {
+    final localizations = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(localizations.logout),
+        content: Text(localizations.logoutConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Logout')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(localizations.cancel)),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: Text(localizations.logout)),
         ],
       ),
     );
@@ -143,6 +145,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -162,7 +165,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   IconButton(
                     icon: Icon(_isEditing ? Icons.check : Icons.edit),
                     onPressed: _toggleEdit,
-                    tooltip: _isEditing ? 'Save' : 'Edit',
+                    tooltip: _isEditing ? localizations.save : localizations.edit,
                   ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),
@@ -171,15 +174,15 @@ class _ProfilePageState extends State<ProfilePage> {
                       if (value == 'logout') _logout();
                     },
                     itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'share', child: ListTile(
-                        leading: Icon(Icons.share_outlined),
-                        title: Text('Share Profile'),
+                      PopupMenuItem(value: 'share', child: ListTile(
+                        leading: const Icon(Icons.share_outlined),
+                        title: Text(localizations.shareProfile),
                         contentPadding: EdgeInsets.zero,
                       )),
                       const PopupMenuDivider(),
-                      const PopupMenuItem(value: 'logout', child: ListTile(
-                        leading: Icon(Icons.logout, color: Colors.red),
-                        title: Text('Logout', style: TextStyle(color: Colors.red)),
+                      PopupMenuItem(value: 'logout', child: ListTile(
+                        leading: const Icon(Icons.logout, color: Colors.red),
+                        title: Text(localizations.logout, style: const TextStyle(color: Colors.red)),
                         contentPadding: EdgeInsets.zero,
                       )),
                     ],
@@ -236,86 +239,86 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
 
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionHeader('Account Info'),
-                      _buildInfoTile(
-                        icon: Icons.badge_outlined,
-                        label: 'User ID',
-                        value: user?.id ?? 'Not set',
-                        isCopyable: true,
-                        onTap: () => _copyToClipboard(user?.id ?? '', 'User ID'),
-                      ),
-                      _buildInfoTile(
-                        icon: Icons.email_outlined,
-                        label: 'Email',
-                        value: user?.email ?? 'Not set',
-                        isCopyable: true,
-                        onTap: () => _copyToClipboard(user?.email ?? '', 'Email'),
-                      ),
-                      _buildInfoTile(
-                        icon: Icons.calendar_today_outlined,
-                        label: 'Member Since',
-                        value: user?.createdAt != null ? _formatDate(user!.createdAt) : 'Unknown',
-                      ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionHeader(localizations.accountInfo),
+                        _buildInfoTile(
+                          icon: Icons.badge_outlined,
+                          label: localizations.userId,
+                          value: user?.id ?? localizations.notSet,
+                          isCopyable: true,
+                          onTap: () => _copyToClipboard(user?.id ?? '', localizations.userId),
+                        ),
+                        _buildInfoTile(
+                          icon: Icons.email_outlined,
+                          label: localizations.email,
+                          value: user?.email ?? localizations.notSet,
+                          isCopyable: true,
+                          onTap: () => _copyToClipboard(user?.email ?? '', localizations.email),
+                        ),
+                        _buildInfoTile(
+                          icon: Icons.calendar_today_outlined,
+                          label: localizations.memberSince,
+                          value: user?.createdAt != null ? _formatDate(user!.createdAt, localizations) : localizations.unknown,
+                        ),
 
-                      const SizedBox(height: 20),
-                      _buildSectionHeader('Personal Details'),
-                      if (_isEditing) ...[
-                        _buildEditField(
-                          icon: Icons.person_outlined,
-                          label: 'Full Name',
-                          controller: _nameController,
-                        ),
-                        _buildEditField(
-                          icon: Icons.phone_outlined,
-                          label: 'Phone',
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                        ),
-                      ] else ...[
-                        _buildInfoTile(
-                          icon: Icons.person_outlined,
-                          label: 'Full Name',
-                          value: user?.name ?? 'Not set',
-                        ),
-                        _buildInfoTile(
-                          icon: Icons.phone_outlined,
-                          label: 'Phone',
-                          value: user?.phonenumber != 0 ? user!.phonenumber.toString() : 'Not set',
-                        ),
-                      ],
+                        const SizedBox(height: 20),
+                        _buildSectionHeader(localizations.personalDetails),
+                        if (_isEditing) ...[
+                          _buildEditField(
+                            icon: Icons.person_outlined,
+                            label: localizations.fullName,
+                            controller: _nameController,
+                          ),
+                          _buildEditField(
+                            icon: Icons.phone_outlined,
+                            label: localizations.phone,
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                          ),
+                        ] else ...[
+                          _buildInfoTile(
+                            icon: Icons.person_outlined,
+                            label: localizations.fullName,
+                            value: user?.name ?? localizations.notSet,
+                          ),
+                          _buildInfoTile(
+                            icon: Icons.phone_outlined,
+                            label: localizations.phone,
+                            value: user?.phonenumber != 0 ? user!.phonenumber.toString() : localizations.notSet,
+                          ),
+                        ],
 
-                      if (accountType == AccountType.seller) ...[
-                        _buildInfoTile(
-                          icon: Icons.store_outlined,
-                          label: 'Location',
-                          value: user?.metadata?['location']?.toString() ?? 'Not set',
-                        ),
-                        _buildInfoTile(
-                          icon: Icons.shopping_bag_outlined,
-                          label: 'Min Order Qty',
-                          value: user?.metadata?['min_order_quantity']?.toString() ?? '1',
-                        ),
-                      ],
-                      if (accountType == AccountType.factory) ...[
-                        _buildInfoTile(
-                          icon: Icons.factory_outlined,
-                          label: 'Company Name',
-                          value: user?.metadata?['company_name']?.toString() ?? 'Not set',
-                        ),
-                        _buildInfoTile(
-                          icon: Icons.work_outline,
-                          label: 'Specialization',
-                          value: user?.metadata?['specialization']?.toString() ?? 'Not set',
-                        ),
-                      ],
+                        if (accountType == AccountType.seller) ...[
+                          _buildInfoTile(
+                            icon: Icons.store_outlined,
+                            label: localizations.location,
+                            value: user?.metadata?['location']?.toString() ?? localizations.notSet,
+                          ),
+                          _buildInfoTile(
+                            icon: Icons.shopping_bag_outlined,
+                            label: localizations.minOrderQty,
+                            value: user?.metadata?['min_order_quantity']?.toString() ?? '1',
+                          ),
+                        ],
+                        if (accountType == AccountType.factory) ...[
+                          _buildInfoTile(
+                            icon: Icons.factory_outlined,
+                            label: localizations.companyName,
+                            value: user?.metadata?['company_name']?.toString() ?? localizations.notSet,
+                          ),
+                          _buildInfoTile(
+                            icon: Icons.work_outline,
+                            label: localizations.specialization,
+                            value: user?.metadata?['specialization']?.toString() ?? localizations.notSet,
+                          ),
+                        ],
 
-                      const SizedBox(height: 24),
-                      _buildSectionHeader('Secure Sharing'),
+                        const SizedBox(height: 24),
+                        _buildSectionHeader(localizations.secureSharing),
                       Material(
                         color: theme.cardColor,
                         borderRadius: BorderRadius.circular(12),
@@ -339,9 +342,9 @@ class _ProfilePageState extends State<ProfilePage> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Text('Share Profile', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+                                      Text(localizations.shareProfile, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
                                       const SizedBox(height: 2),
-                                      Text('Generate a secure token to share with others', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                                      Text(localizations.generateSecureToken, style: TextStyle(fontSize: 12, color: theme.hintColor)),
                                     ],
                                   ),
                                 ),
@@ -489,8 +492,8 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  String _formatDate(DateTime date) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  String _formatDate(DateTime date, AppLocalizations localizations) {
+    final months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
@@ -503,13 +506,14 @@ class _ShareDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final localizations = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: const Text('Share Profile Securely'),
+      title: Text(localizations.shareProfileSecurely),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Share this token with trusted parties:'),
+          Text(localizations.shareTokenWithTrusted),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -526,22 +530,22 @@ class _ShareDialog extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text('Includes: ${data['name']}, ${data['account_type']}', style: TextStyle(fontSize: 12, color: theme.hintColor)),
-          Text('Token expires after sharing', style: TextStyle(fontSize: 11, color: theme.hintColor)),
+          Text('${data['name']}, ${data['account_type']}', style: TextStyle(fontSize: 12, color: theme.hintColor)),
+          Text(localizations.tokenExpires, style: TextStyle(fontSize: 11, color: theme.hintColor)),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(localizations.close)),
         FilledButton.icon(
           onPressed: () {
             Clipboard.setData(ClipboardData(text: token));
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Token copied to clipboard'), backgroundColor: Colors.green),
+              SnackBar(content: Text(localizations.tokenCopied), backgroundColor: Colors.green),
             );
           },
           icon: const Icon(Icons.copy, size: 18),
-          label: const Text('Copy Token'),
+          label: Text(localizations.copyToken),
         ),
       ],
     );

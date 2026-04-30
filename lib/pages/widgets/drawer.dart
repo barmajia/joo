@@ -7,17 +7,17 @@ import 'package:aurora/users/account_type.dart';
 class FixidDrawer extends StatelessWidget {
   const FixidDrawer({super.key});
 
-  String _getAccountTypeName(AccountType? accountType) {
-    if (accountType == null) return 'Unknown';
+  String _getAccountTypeName(AccountType? accountType, AppLocalizations localizations) {
+    if (accountType == null) return localizations.unknown;
     switch (accountType) {
       case AccountType.seller:
-        return 'Seller';
+        return localizations.seller;
       case AccountType.factory:
-        return 'Factory';
+        return localizations.factory;
       case AccountType.customser:
-        return 'Customer';
+        return localizations.customer;
       case AccountType.middleman:
-        return 'Middle Man';
+        return localizations.middleMan;
     }
   }
 
@@ -157,7 +157,7 @@ class FixidDrawer extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              _getAccountTypeName(accountType),
+                              _getAccountTypeName(accountType, localizations),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
@@ -202,7 +202,7 @@ class FixidDrawer extends StatelessWidget {
                   ),
                   _buildDrawerItem(
                     icon: Icons.person_outline,
-                    title: 'Profile',
+                    title: localizations.profile,
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.of(context).pushNamed('/profile');
@@ -210,7 +210,7 @@ class FixidDrawer extends StatelessWidget {
                   ),
                   _buildDrawerItem(
                     icon: Icons.inventory_2_outlined,
-                    title: 'Products',
+                    title: localizations.products,
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/seller_product');
@@ -221,7 +221,7 @@ class FixidDrawer extends StatelessWidget {
                       if (userStorage.isSeller) {
                         return _buildDrawerItem(
                           icon: Icons.people_outline,
-                          title: 'Customers',
+                          title: localizations.customers,
                           onTap: () {
                             Navigator.pop(context);
                             Navigator.of(context).pushNamed('/customers');
@@ -233,7 +233,7 @@ class FixidDrawer extends StatelessWidget {
                   ),
                   _buildDrawerItem(
                     icon: Icons.analytics_outlined,
-                    title: 'Analytics',
+                    title: localizations.analytics,
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.of(context).pushNamed('/analytics');
@@ -269,7 +269,7 @@ class FixidDrawer extends StatelessWidget {
                       Icon(Icons.logout, color: Colors.red[400], size: 20),
                       const SizedBox(width: 12),
                       Text(
-                        'Logout',
+                        localizations.logout,
                         style: TextStyle(
                           color: Colors.red[400],
                           fontWeight: FontWeight.w600,

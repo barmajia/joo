@@ -12,11 +12,11 @@ class Storage {
     _isInitialized = true;
   }
 
-  static Future<void> _saveString(String key, String value) async {
+  static Future<void> saveString(String key, String value) async {
     await _prefs.setString(key, value);
   }
 
-  static Future<String?> _getString(String key) async {
+  static Future<String?> getString(String key) async {
     try {
       return _prefs.getString(key);
     } catch (e) {
@@ -26,6 +26,14 @@ class Storage {
       if (value is bool) return value.toString();
       return null;
     }
+  }
+
+  static Future<void> _saveString(String key, String value) async {
+    await saveString(key, value);
+  }
+
+  static Future<String?> _getString(String key) async {
+    return getString(key);
   }
 
   /// Generic method to save data as JSON

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:aurora/pages/seller/add_product_page.dart';
 import 'package:aurora/pages/seller/products_page.dart';
 import 'package:aurora/pages/analysis/analysis_page.dart';
@@ -22,6 +21,9 @@ import 'package:aurora/locale/locale_provider.dart';
 import 'package:aurora/l10n/app_localizations.dart';
 import 'package:aurora/supabase/supabase_auth.dart';
 import 'package:aurora/users/account_type.dart';
+import 'package:aurora/providers/app_settings_provider.dart';
+import 'package:aurora/widgets/app_lock_screen.dart';
+import 'package:aurora/utils/page_transitions.dart';
 
 Future<Map<String, String>> _loadEnvVars() async {
   final content = await rootBundle.loadString('.env');
@@ -51,9 +53,13 @@ Future<void> main() async {
     await _requestLocationPermission();
   }
 
+  final appSettings = AppSettingsProvider();
+  await appSettings.init();
+
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: appSettings),
         ChangeNotifierProvider(create: (_) => SupabaseAuth()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
@@ -85,11 +91,23 @@ class AuroraApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
+    final appSettings = Provider.of<AppSettingsProvider>(context);
+
+    final pageTransitions = appSettings.reduceAnimations
+        ? const <TargetPlatform, PageTransitionsBuilder>{
+            TargetPlatform.android: ReducedAnimationPageTransitionsBuilder(),
+            TargetPlatform.iOS: ReducedAnimationPageTransitionsBuilder(),
+          }
+        : null;
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Aurora',
-      theme: themeProvider.theme,
+      theme: themeProvider.theme.copyWith(
+        pageTransitionsTheme: pageTransitions != null
+            ? PageTransitionsTheme(builders: pageTransitions)
+            : null,
+      ),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: localeProvider.locale,
@@ -103,7 +121,7 @@ class AuroraApp extends StatelessWidget {
         '/customers': (context) => const CustomerListPage(),
         '/analytics': (context) => const AnalysisPage(),
       },
-      home: const SplashScreen(),
+      home: const AppLockScreen(child: SplashScreen()),
     );
   }
 }
@@ -122,45 +140,37 @@ class _SplashScreenState extends State<SplashScreen> {
     _checkAuthAndNavigate();
   }
 
-   Future<void> _checkAuthAndNavigate() async {
-     await Future.delayed(const Duration(milliseconds: 500));
+  Future<void> _checkAuthAndNavigate() async {
+    await Future.delayed(const Duration(milliseconds: 500));
 
-     try {
-       // Ensure storage is initialized
-       await Storage.init();
-       
-       final supabase = Supabase.instance.client;
-       final currentUser = supabase.auth.currentUser;
+    try {
+      await Storage.init();
+      
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
 
-       if (currentUser == null) {
-         if (mounted) {
-           Navigator.of(context).pushReplacementNamed('/welcome');
-         }
-         return;
-       }
+      if (currentUser == null) {
+        if (mounted) Navigator.of(context).pushReplacementNamed('/welcome');
+        return;
+      }
 
-       final accountType = await Storage.getAccountType();
-       final userStorage = Provider.of<UserStorage>(context, listen: false);
+      final accountType = await Storage.getAccountType();
+      final userStorage = Provider.of<UserStorage>(context, listen: false);
 
-       try {
-         await userStorage.loadUser(
-           accountType == 'factory' ? AccountType.factory : AccountType.seller,
-         );
-       } catch (e) {
-         debugPrint('[main._checkAuthAndNavigate] Error loading user: $e');
-       }
+      try {
+        await userStorage.loadUser(
+          accountType == 'factory' ? AccountType.factory : AccountType.seller,
+        );
+      } catch (e) {
+        debugPrint('[SplashScreen] Error loading user: $e');
+      }
 
-       if (mounted) {
-         Navigator.of(context).pushReplacementNamed('/home');
-       }
-     } catch (e) {
-       debugPrint('[main._checkAuthAndNavigate] Error: $e');
-       // If there's an error, go to welcome screen as fallback
-       if (mounted) {
-         Navigator.of(context).pushReplacementNamed('/welcome');
-       }
-     }
-   }
+      if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+    } catch (e) {
+      debugPrint('[SplashScreen] Error: $e');
+      if (mounted) Navigator.of(context).pushReplacementNamed('/welcome');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,10 +181,7 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             const Icon(Icons.storefront, size: 100, color: Color(0xFF6366F1)),
             const SizedBox(height: 24),
-            const Text(
-              'Aurora',
-              style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
-            ),
+            const Text('Aurora', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold)),
             const SizedBox(height: 32),
             const CircularProgressIndicator(),
           ],

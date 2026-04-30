@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:aurora/storage/userStorage.dart';
+import 'package:aurora/l10n/app_localizations.dart';
 import './widgets/drawer.dart';
 
 class Homepapge extends StatefulWidget {
@@ -36,6 +37,7 @@ class _HomepapgeState extends State<Homepapge> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     return Scaffold(
       drawerEdgeDragWidth: double.infinity,
       drawerEnableOpenDragGesture: true,
@@ -60,11 +62,11 @@ class _HomepapgeState extends State<Homepapge> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildWelcomeSection(),
+              _buildWelcomeSection(context, localizations),
               const SizedBox(height: 24),
-              _buildStatsSection(),
+              _buildStatsSection(context, localizations),
               const SizedBox(height: 24),
-              _buildQuickActions(context),
+              _buildQuickActions(context, localizations),
             ],
           ),
         ),
@@ -72,9 +74,9 @@ class _HomepapgeState extends State<Homepapge> {
     );
   }
 
-  Widget _buildWelcomeSection() {
-    final name = _sellerData?['full_name'] ?? 'Seller';
-    final storeName = _sellerData?['store_name'] ?? 'Your Store';
+  Widget _buildWelcomeSection(BuildContext context, AppLocalizations localizations) {
+    final name = _sellerData?['full_name'] ?? localizations.seller;
+    final storeName = _sellerData?['store_name'] ?? localizations.yourStore;
 
     return Container(
       decoration: BoxDecoration(
@@ -121,7 +123,7 @@ class _HomepapgeState extends State<Homepapge> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Welcome back,',
+                  localizations.welcomeBack,
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.white.withAlpha(204),
@@ -150,12 +152,12 @@ class _HomepapgeState extends State<Homepapge> {
     );
   }
 
-  Widget _buildStatsSection() {
+  Widget _buildStatsSection(BuildContext context, AppLocalizations localizations) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            'Products',
+            localizations.products,
             '0',
             Icons.inventory_2,
             const Color(0xFF3B82F6),
@@ -164,7 +166,7 @@ class _HomepapgeState extends State<Homepapge> {
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            'Orders',
+            localizations.orders,
             '0',
             Icons.shopping_cart,
             const Color(0xFF10B981),
@@ -173,7 +175,7 @@ class _HomepapgeState extends State<Homepapge> {
         const SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
-            'Revenue',
+            localizations.revenue,
             '\$0',
             Icons.attach_money,
             const Color(0xFFF59E0B),
@@ -224,39 +226,39 @@ class _HomepapgeState extends State<Homepapge> {
     );
   }
 
-  Widget _buildQuickActions(BuildContext context) {
+  Widget _buildQuickActions(BuildContext context, AppLocalizations localizations) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Text(
+          localizations.quickActions,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Consumer<UserStorage>(
           builder: (context, userStorage, _) {
             final actions = [
               _buildActionCard(
-                'Products',
+                localizations.products,
                 Icons.inventory_2,
                 const Color(0xFF3B82F6),
                 () => Navigator.of(context).pushNamed('/seller_product'),
               ),
               if (userStorage.isSeller)
                 _buildActionCard(
-                  'Customers',
+                  localizations.customers,
                   Icons.people,
                   const Color(0xFF10B981),
                   () => Navigator.of(context).pushNamed('/customers'),
                 ),
               _buildActionCard(
-                'Orders',
+                localizations.orders,
                 Icons.shopping_cart,
                 const Color(0xFFF59E0B),
                 () {},
               ),
               _buildActionCard(
-                'Profile',
+                localizations.profile,
                 Icons.person,
                 const Color(0xFF8B5CF6),
                 () => Navigator.of(context).pushNamed('/profile'),

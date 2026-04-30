@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +5,7 @@ import '../theme/theme_provider.dart';
 import '../locale/locale_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../storage/storage.dart';
+import '../providers/app_settings_provider.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,9 +15,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _reduceAnimations = false;
   bool _autoSync = true;
-  bool _biometricLock = false;
 
   @override
   void initState() {
@@ -27,29 +24,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _loadSettings() async {
-    final reduce = await Storage.getBool('reduce_animations');
     final sync = await Storage.getBool('auto_sync');
-    final biometric = await Storage.getBool('biometric_lock');
-    if (mounted) {
-      setState(() {
-        _reduceAnimations = reduce;
-        _autoSync = sync;
-        _biometricLock = biometric;
-      });
-    }
-  }
-
-  Future<void> _toggleAnimations(bool value) async {
-    await Storage.saveBool('reduce_animations', value);
-    setState(() => _reduceAnimations = value);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(value ? 'Animations reduced' : 'Animations restored'),
-          duration: const Duration(seconds: 1),
-        ),
-      );
-    }
+    if (mounted) setState(() => _autoSync = sync);
   }
 
   Future<void> _toggleAutoSync(bool value) async {
@@ -57,49 +33,18 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _autoSync = value);
   }
 
-  Future<void> _toggleBiometric(bool value) async {
-    await Storage.saveBool('biometric_lock', value);
-    setState(() => _biometricLock = value);
+  Future<void> _toggleAnimations(BuildContext context, bool value) async {
+    Provider.of<AppSettingsProvider>(
+      context,
+      listen: false,
+    ).setReduceAnimations(value);
   }
 
-  Future<void> _deleteAllData() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete All Data'),
-        content: const Text(
-          'This will permanently delete all cached products, customers, orders, and settings. This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
-      try {
-        await Storage.clearAll();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('All data cleared'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.of(context).pushReplacementNamed('/welcome');
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to clear data: $e'), backgroundColor: Colors.red),
-          );
-        }
-      }
-    }
+  Future<void> _toggleBiometric(BuildContext context, bool value) async {
+    Provider.of<AppSettingsProvider>(
+      context,
+      listen: false,
+    ).setBiometricLock(value);
   }
 
   @override
@@ -108,26 +53,31 @@ class _SettingsPageState extends State<SettingsPage> {
     final localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(localizations.settings)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildSectionHeader(context, 'Appearance'),
+          _buildSectionHeader(context, localizations.appearance),
           _buildSettingTile(
             icon: Icons.palette_outlined,
             iconColor: Colors.purple,
-            title: 'Theme',
-            subtitle: _getThemeName(Provider.of<ThemeProvider>(context).currentTheme),
+            title: localizations.theme,
+            subtitle: _getThemeName(
+              Provider.of<ThemeProvider>(context).currentTheme,
+            ),
             onTap: () => _showThemeBottomSheet(context),
           ),
           const SizedBox(height: 8),
           _buildSwitchTile(
             icon: Icons.color_lens_outlined,
             iconColor: Colors.deepPurple,
-            title: 'Dynamic Colors',
-            subtitle: 'Use Material You theming',
+            title: localizations.dynamicColors,
+            subtitle: localizations.useMaterialYou,
             value: Provider.of<ThemeProvider>(context).useDynamicColors,
-            onChanged: (v) => Provider.of<ThemeProvider>(context, listen: false).toggleDynamicColors(),
+            onChanged: (v) => Provider.of<ThemeProvider>(
+              context,
+              listen: false,
+            ).toggleDynamicColors(),
           ),
           const SizedBox(height: 8),
           _buildLanguageTile(context, localizations),
@@ -135,83 +85,66 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSwitchTile(
             icon: Icons.animation_outlined,
             iconColor: Colors.teal,
-            title: 'Reduce Animations',
-            subtitle: 'Improve performance on older devices',
-            value: _reduceAnimations,
-            onChanged: _toggleAnimations,
+            title: localizations.reduceAnimations,
+            subtitle: localizations.improvePerformance,
+            value: Provider.of<AppSettingsProvider>(context).reduceAnimations,
+            onChanged: (v) => _toggleAnimations(context, v),
           ),
 
           const SizedBox(height: 24),
-          _buildSectionHeader(context, 'Sync & Data'),
+          _buildSectionHeader(context, localizations.syncData),
           _buildSwitchTile(
             icon: Icons.sync_outlined,
             iconColor: Colors.blue,
-            title: 'Auto Sync',
-            subtitle: 'Automatically sync with cloud',
+            title: localizations.autoSync,
+            subtitle: localizations.automaticallySync,
             value: _autoSync,
             onChanged: _toggleAutoSync,
           ),
-          const SizedBox(height: 8),
-          _buildSettingTile(
-            icon: Icons.cloud_download_outlined,
-            iconColor: Colors.cyan,
-            title: 'Cache Size',
-            subtitle: 'Manage stored data',
-            onTap: () => _showCacheInfo(context),
-          ),
-          const SizedBox(height: 8),
-          _buildSettingTile(
-            icon: Icons.delete_sweep_outlined,
-            iconColor: Colors.orange,
-            title: 'Delete All Data',
-            subtitle: 'Clear everything and start fresh',
-            onTap: _deleteAllData,
-            isDestructive: true,
-          ),
 
           const SizedBox(height: 24),
-          _buildSectionHeader(context, 'Security'),
+          _buildSectionHeader(context, localizations.security),
           _buildSwitchTile(
             icon: Icons.fingerprint_outlined,
             iconColor: Colors.indigo,
-            title: 'Biometric Lock',
-            subtitle: 'Require fingerprint or face ID',
-            value: _biometricLock,
-            onChanged: _toggleBiometric,
+            title: localizations.biometricLock,
+            subtitle: localizations.requireFingerprint,
+            value: Provider.of<AppSettingsProvider>(context).biometricLock,
+            onChanged: (v) => _toggleBiometric(context, v),
           ),
           const SizedBox(height: 8),
           _buildSettingTile(
             icon: Icons.key_outlined,
             iconColor: Colors.redAccent,
-            title: 'Change Password',
-            subtitle: 'Update your account password',
+            title: localizations.changePassword,
+            subtitle: localizations.updatePassword,
             onTap: () => _showChangePasswordDialog(context),
           ),
 
           const SizedBox(height: 24),
-          _buildSectionHeader(context, 'Account'),
+          _buildSectionHeader(context, localizations.account),
           _buildSettingTile(
             icon: Icons.person_outlined,
             iconColor: theme.primaryColor,
-            title: 'Edit Profile',
-            subtitle: 'Update your information',
+            title: localizations.editProfile,
+            subtitle: localizations.updateInformation,
             onTap: () => Navigator.of(context).pushNamed('/profile'),
           ),
           const SizedBox(height: 8),
           _buildSettingTile(
             icon: Icons.notifications_outlined,
             iconColor: Colors.amber,
-            title: 'Notifications',
-            subtitle: 'Manage push notifications',
-            onTap: () => _showComingSoon(context, 'Notifications'),
+            title: localizations.notifications,
+            subtitle: localizations.manageNotifications,
+            onTap: () => _showComingSoon(context, localizations.notifications),
           ),
 
           const SizedBox(height: 24),
-          _buildSectionHeader(context, 'About'),
+          _buildSectionHeader(context, localizations.about),
           _buildSettingTile(
             icon: Icons.info_outline,
             iconColor: Colors.grey,
-            title: 'App Version',
+            title: localizations.appVersion,
             subtitle: 'Aurora v1.0.0',
             onTap: () {},
           ),
@@ -219,17 +152,17 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSettingTile(
             icon: Icons.privacy_tip_outlined,
             iconColor: Colors.green,
-            title: 'Privacy Policy',
-            subtitle: 'How we handle your data',
-            onTap: () => _showComingSoon(context, 'Privacy Policy'),
+            title: localizations.privacyPolicy,
+            subtitle: localizations.howWeHandleData,
+            onTap: () => _showComingSoon(context, localizations.privacyPolicy),
           ),
           const SizedBox(height: 8),
           _buildSettingTile(
             icon: Icons.help_outline,
             iconColor: Colors.blueGrey,
-            title: 'Help & Support',
-            subtitle: 'Get assistance',
-            onTap: () => _showComingSoon(context, 'Help'),
+            title: localizations.helpSupport,
+            subtitle: localizations.getAssistance,
+            onTap: () => _showComingSoon(context, localizations.helpSupport),
           ),
           const SizedBox(height: 32),
         ],
@@ -242,9 +175,9 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -292,10 +225,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: theme.hintColor,
-                      ),
+                      style: TextStyle(fontSize: 12, color: theme.hintColor),
                     ),
                   ],
                 ),
@@ -340,9 +270,18 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  ),
                 ],
               ),
             ),
@@ -353,7 +292,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildLanguageTile(BuildContext context, AppLocalizations localizations) {
+  Widget _buildLanguageTile(
+    BuildContext context,
+    AppLocalizations localizations,
+  ) {
     final theme = Theme.of(context);
     final localeProvider = Provider.of<LocaleProvider>(context);
     final langName = localeProvider.locale.languageCode == 'ar'
@@ -376,16 +318,29 @@ class _SettingsPageState extends State<SettingsPage> {
                   color: Colors.blue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.language_outlined, color: Colors.blue, size: 22),
+                child: const Icon(
+                  Icons.language_outlined,
+                  color: Colors.blue,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Language', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+                    const Text(
+                      'Language',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(langName, style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                    Text(
+                      langName,
+                      style: TextStyle(fontSize: 12, color: theme.hintColor),
+                    ),
                   ],
                 ),
               ),
@@ -399,16 +354,26 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String _getThemeName(ThemeStyle theme) {
     switch (theme) {
-      case ThemeStyle.modernLight: return 'Modern Light';
-      case ThemeStyle.elegantLight: return 'Elegant Light';
-      case ThemeStyle.modernDark: return 'Modern Dark';
-      case ThemeStyle.elegantDark: return 'Elegant Dark';
-      case ThemeStyle.amoledDark: return 'AMOLED Dark';
-      case ThemeStyle.cyberpunk: return 'Cyberpunk';
-      case ThemeStyle.forest: return 'Forest';
-      case ThemeStyle.ocean: return 'Ocean';
-      case ThemeStyle.sunset: return 'Sunset';
-      case ThemeStyle.monochrome: return 'Monochrome';
+      case ThemeStyle.modernLight:
+        return 'Modern Light';
+      case ThemeStyle.elegantLight:
+        return 'Elegant Light';
+      case ThemeStyle.modernDark:
+        return 'Modern Dark';
+      case ThemeStyle.elegantDark:
+        return 'Elegant Dark';
+      case ThemeStyle.amoledDark:
+        return 'AMOLED Dark';
+      case ThemeStyle.cyberpunk:
+        return 'Cyberpunk';
+      case ThemeStyle.forest:
+        return 'Forest';
+      case ThemeStyle.ocean:
+        return 'Ocean';
+      case ThemeStyle.sunset:
+        return 'Sunset';
+      case ThemeStyle.monochrome:
+        return 'Monochrome';
     }
   }
 
@@ -449,50 +414,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showCacheInfo(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Cache Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const Text('Cached data includes:'),
-            const SizedBox(height: 8),
-            _buildCacheItem('Product vault', '~2.5 MB'),
-            _buildCacheItem('Product images', '~15 MB'),
-            _buildCacheItem('Customer data', '~500 KB'),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Storage.clearAll();
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cache cleared')),
-                  );
-                },
-                icon: const Icon(Icons.delete),
-                label: const Text('Clear Cache'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildCacheItem(String name, String size) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -509,28 +430,32 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showChangePasswordDialog(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
+        title: Text(localizations.changePassword),
         content: TextField(
           controller: controller,
           obscureText: true,
-          decoration: const InputDecoration(labelText: 'New password'),
+          decoration: InputDecoration(labelText: localizations.newPassword),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(localizations.cancel),
+          ),
           TextButton(
             onPressed: () {
               if (controller.text.isNotEmpty) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password changed')),
+                  SnackBar(content: Text(localizations.passwordChanged)),
                 );
               }
             },
-            child: const Text('Save'),
+            child: Text(localizations.save),
           ),
         ],
       ),
@@ -538,8 +463,12 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showComingSoon(BuildContext context, String feature) {
+    final localizations = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature - Coming Soon'), duration: const Duration(seconds: 2)),
+      SnackBar(
+        content: Text('$feature - ${localizations.comingSoon}'),
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 }
@@ -547,10 +476,14 @@ class _SettingsPageState extends State<SettingsPage> {
 class _ThemeBottomSheet extends StatelessWidget {
   final ThemeStyle selectedTheme;
   final Function(ThemeStyle) onSelect;
-  const _ThemeBottomSheet({required this.selectedTheme, required this.onSelect});
+  const _ThemeBottomSheet({
+    required this.selectedTheme,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -559,24 +492,38 @@ class _ThemeBottomSheet extends StatelessWidget {
         children: [
           Center(
             child: Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-          const Text('Select Theme', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(
+            localizations.selectTheme,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           SizedBox(
             height: 300,
             child: GridView.builder(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.5,
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.5,
               ),
               itemCount: ThemeStyle.values.length,
               itemBuilder: (context, index) {
                 final theme = ThemeStyle.values[index];
                 final isSelected = theme == selectedTheme;
-                return _ThemeCard(theme: theme, isSelected: isSelected, onTap: () => onSelect(theme));
+                return _ThemeCard(
+                  theme: theme,
+                  isSelected: isSelected,
+                  onTap: () => onSelect(theme),
+                );
               },
             ),
           ),
@@ -590,7 +537,11 @@ class _ThemeCard extends StatelessWidget {
   final ThemeStyle theme;
   final bool isSelected;
   final VoidCallback onTap;
-  const _ThemeCard({required this.theme, required this.isSelected, required this.onTap});
+  const _ThemeCard({
+    required this.theme,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -603,10 +554,21 @@ class _ThemeCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.transparent,
             width: 2,
           ),
-          boxShadow: isSelected ? [BoxShadow(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3), blurRadius: 8)] : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                  ),
+                ]
+              : null,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
@@ -614,12 +576,35 @@ class _ThemeCard extends StatelessWidget {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [colors[0], colors[1]]),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [colors[0], colors[1]],
+                  ),
                 ),
               ),
-              Positioned(left: 12, bottom: 12, child: Text(name, style: TextStyle(color: _getTextColor(theme), fontWeight: FontWeight.w600, fontSize: 14))),
+              Positioned(
+                left: 12,
+                bottom: 12,
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    color: _getTextColor(theme),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
               if (isSelected)
-                Positioned(right: 8, bottom: 8, child: Icon(Icons.check_circle, color: _getTextColor(theme), size: 20)),
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Icon(
+                    Icons.check_circle,
+                    color: _getTextColor(theme),
+                    size: 20,
+                  ),
+                ),
             ],
           ),
         ),
@@ -629,31 +614,91 @@ class _ThemeCard extends StatelessWidget {
 
   List<Color> _getThemeColors(ThemeStyle theme) {
     switch (theme) {
-      case ThemeStyle.modernLight: return [const Color(0xFFE0E7FF), const Color(0xFFC7D2FE), const Color(0xFF6366F1)];
-      case ThemeStyle.elegantLight: return [const Color(0xFFFEF3C7), const Color(0xFFFDE68A), const Color(0xFF1E3A8A)];
-      case ThemeStyle.modernDark: return [const Color(0xFF1E293B), const Color(0xFF334155), const Color(0xFF818CF8)];
-      case ThemeStyle.elegantDark: return [const Color(0xFF1E293B), const Color(0xFF334155), const Color(0xFF94A3B8)];
-      case ThemeStyle.amoledDark: return [const Color(0xFF121212), const Color(0xFF1E1E1E), const Color(0xFF00BCD4)];
-      case ThemeStyle.cyberpunk: return [const Color(0xFF1A1A1A), const Color(0xFF2D2D2D), const Color(0xFF00FF00)];
-      case ThemeStyle.forest: return [const Color(0xFFF0FDF4), const Color(0xFFDCFCE7), const Color(0xFF166534)];
-      case ThemeStyle.ocean: return [const Color(0xFFE0F2FE), const Color(0xFFBAE6FD), const Color(0xFF0284C7)];
-      case ThemeStyle.sunset: return [const Color(0xFFFEF2F2), const Color(0xFFFECACA), const Color(0xFFBE123C)];
-      case ThemeStyle.monochrome: return [const Color(0xFFF5F5F5), const Color(0xFFE5E5E5), const Color(0xFF404040)];
+      case ThemeStyle.modernLight:
+        return [
+          const Color(0xFFE0E7FF),
+          const Color(0xFFC7D2FE),
+          const Color(0xFF6366F1),
+        ];
+      case ThemeStyle.elegantLight:
+        return [
+          const Color(0xFFFEF3C7),
+          const Color(0xFFFDE68A),
+          const Color(0xFF1E3A8A),
+        ];
+      case ThemeStyle.modernDark:
+        return [
+          const Color(0xFF1E293B),
+          const Color(0xFF334155),
+          const Color(0xFF818CF8),
+        ];
+      case ThemeStyle.elegantDark:
+        return [
+          const Color(0xFF1E293B),
+          const Color(0xFF334155),
+          const Color(0xFF94A3B8),
+        ];
+      case ThemeStyle.amoledDark:
+        return [
+          const Color(0xFF121212),
+          const Color(0xFF1E1E1E),
+          const Color(0xFF00BCD4),
+        ];
+      case ThemeStyle.cyberpunk:
+        return [
+          const Color(0xFF1A1A1A),
+          const Color(0xFF2D2D2D),
+          const Color(0xFF00FF00),
+        ];
+      case ThemeStyle.forest:
+        return [
+          const Color(0xFFF0FDF4),
+          const Color(0xFFDCFCE7),
+          const Color(0xFF166534),
+        ];
+      case ThemeStyle.ocean:
+        return [
+          const Color(0xFFE0F2FE),
+          const Color(0xFFBAE6FD),
+          const Color(0xFF0284C7),
+        ];
+      case ThemeStyle.sunset:
+        return [
+          const Color(0xFFFEF2F2),
+          const Color(0xFFFECACA),
+          const Color(0xFFBE123C),
+        ];
+      case ThemeStyle.monochrome:
+        return [
+          const Color(0xFFF5F5F5),
+          const Color(0xFFE5E5E5),
+          const Color(0xFF404040),
+        ];
     }
   }
 
   String _getThemeName(ThemeStyle theme) {
     switch (theme) {
-      case ThemeStyle.modernLight: return 'Modern Light';
-      case ThemeStyle.elegantLight: return 'Elegant Light';
-      case ThemeStyle.modernDark: return 'Modern Dark';
-      case ThemeStyle.elegantDark: return 'Elegant Dark';
-      case ThemeStyle.amoledDark: return 'AMOLED Dark';
-      case ThemeStyle.cyberpunk: return 'Cyberpunk';
-      case ThemeStyle.forest: return 'Forest';
-      case ThemeStyle.ocean: return 'Ocean';
-      case ThemeStyle.sunset: return 'Sunset';
-      case ThemeStyle.monochrome: return 'Monochrome';
+      case ThemeStyle.modernLight:
+        return 'Modern Light';
+      case ThemeStyle.elegantLight:
+        return 'Elegant Light';
+      case ThemeStyle.modernDark:
+        return 'Modern Dark';
+      case ThemeStyle.elegantDark:
+        return 'Elegant Dark';
+      case ThemeStyle.amoledDark:
+        return 'AMOLED Dark';
+      case ThemeStyle.cyberpunk:
+        return 'Cyberpunk';
+      case ThemeStyle.forest:
+        return 'Forest';
+      case ThemeStyle.ocean:
+        return 'Ocean';
+      case ThemeStyle.sunset:
+        return 'Sunset';
+      case ThemeStyle.monochrome:
+        return 'Monochrome';
     }
   }
 
@@ -664,8 +709,10 @@ class _ThemeCard extends StatelessWidget {
       case ThemeStyle.forest:
       case ThemeStyle.ocean:
       case ThemeStyle.sunset:
-      case ThemeStyle.monochrome: return const Color(0xFF1E293B);
-      default: return Colors.white;
+      case ThemeStyle.monochrome:
+        return const Color(0xFF1E293B);
+      default:
+        return Colors.white;
     }
   }
 }
@@ -674,7 +721,11 @@ class _LanguageBottomSheet extends StatelessWidget {
   final Locale currentLocale;
   final AppLocalizations localizations;
   final Function(Locale) onSelect;
-  const _LanguageBottomSheet({required this.currentLocale, required this.localizations, required this.onSelect});
+  const _LanguageBottomSheet({
+    required this.currentLocale,
+    required this.localizations,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -684,19 +735,42 @@ class _LanguageBottomSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 16), decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
-          const Text('Select Language', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Text(
+            localizations.selectLanguage,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           ListTile(
             leading: const Icon(Icons.language),
             title: Text(localizations.english),
-            trailing: currentLocale.languageCode == 'en' ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
+            trailing: currentLocale.languageCode == 'en'
+                ? Icon(
+                    Icons.check,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                : null,
             onTap: () => onSelect(const Locale('en', '')),
           ),
           ListTile(
             leading: const Icon(Icons.language),
             title: Text(localizations.arabic),
-            trailing: currentLocale.languageCode == 'ar' ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary) : null,
+            trailing: currentLocale.languageCode == 'ar'
+                ? Icon(
+                    Icons.check,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                : null,
             onTap: () => onSelect(const Locale('ar', '')),
           ),
         ],

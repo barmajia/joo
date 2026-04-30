@@ -21,7 +21,7 @@ class AppSettingsProvider extends ChangeNotifier {
     _reduceAnimations = await Storage.getBool('reduce_animations');
     _biometricLock = await Storage.getBool('biometric_lock');
     _passwordLock = await Storage.getBool('password_lock');
-    _appPassword = await Storage._getString('app_password');
+    _appPassword = await Storage.getString('app_password');
     notifyListeners();
   }
 
@@ -34,9 +34,7 @@ class AppSettingsProvider extends ChangeNotifier {
   Future<void> setBiometricLock(bool value) async {
     if (value) {
       final available = await _localAuth.canCheckBiometrics;
-      if (!available) {
-        return;
-      }
+      if (!available) return;
     }
     await Storage.saveBool('biometric_lock', value);
     _biometricLock = value;
@@ -46,7 +44,7 @@ class AppSettingsProvider extends ChangeNotifier {
 
   Future<void> setAppPassword(String password) async {
     await Storage.saveBool('password_lock', password.isNotEmpty);
-    await Storage._saveString('app_password', password);
+    await Storage.saveString('app_password', password);
     _passwordLock = password.isNotEmpty;
     _appPassword = password;
     if (password.isNotEmpty) _isUnlocked = true;
