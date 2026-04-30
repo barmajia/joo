@@ -2,6 +2,7 @@ import 'package:aurora/pages/seller/add_product_page.dart';
 import 'package:aurora/pages/seller/products_page.dart';
 import 'package:aurora/pages/analysis/analysis_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -21,7 +22,11 @@ import 'package:aurora/l10n/app_localizations.dart';
 import 'package:aurora/supabase/supabase_auth.dart';
 import 'package:aurora/users/account_type.dart';
 
-void main() async {
+Future<void> main() async {
+  await dotenv.load(fileName: '.env');
+  String supabaseUrl = await dotenv.env['SUPABASE_URL']!;
+  String supabaseAnonKey = await dotenv.env['SUPABASE_ANON_KEY']!;
+  Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   WidgetsFlutterBinding.ensureInitialized();
 
   await Storage.init();
@@ -29,12 +34,6 @@ void main() async {
   if (!kIsWeb) {
     await _requestLocationPermission();
   }
-
-  Supabase.initialize(
-    url: 'https://ofovfxsfazlwvcakpuer.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9mb3ZmeHNmYXpsd3ZjYWtwdWVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMjY0MDcsImV4cCI6MjA4NzcwMjQwN30.QYx8-c9IiSMpuHeikKz25MKO5o6g112AKj4Tnr4aWzI',
-  );
 
   runApp(
     MultiProvider(

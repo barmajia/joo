@@ -300,3 +300,147 @@ class ProductCategories {
     }
   }
 }
+
+// ============================================================================
+// ATTRIBUTE DEFINITIONS FOR SUBCATEGORIES
+// ============================================================================
+
+enum AttributeType { dropdown, multiSelect, text, number, boolean }
+
+class ProductAttribute {
+  final String key;
+  final String label;
+  final AttributeType type;
+  final List<String>? options;
+  final String? hint;
+
+  const ProductAttribute({
+    required this.key,
+    required this.label,
+    required this.type,
+    this.options,
+    this.hint,
+  });
+}
+
+const Map<String, List<ProductAttribute>> subcategoryAttributes = {
+  'Denim': [
+    ProductAttribute(
+      key: 'available_colors',
+      label: 'Available Colors',
+      type: AttributeType.multiSelect,
+      options: ['Black', 'Blue', 'Dark Blue', 'Light Blue', 'White', 'Grey', 'Navy'],
+    ),
+    ProductAttribute(
+      key: 'available_sizes',
+      label: 'Available Sizes',
+      type: AttributeType.multiSelect,
+      options: ['28', '30', '32', '34', '36', '38', '40'],
+    ),
+    ProductAttribute(
+      key: 'fit',
+      label: 'Fit Type',
+      type: AttributeType.dropdown,
+      options: ['Slim', 'Straight', 'Relaxed', 'Bootcut', 'Skinny'],
+    ),
+    ProductAttribute(
+      key: 'material',
+      label: 'Material',
+      type: AttributeType.text,
+      hint: 'e.g., 100% Cotton, Elastane blend',
+    ),
+    ProductAttribute(
+      key: 'length',
+      label: 'Length (inches)',
+      type: AttributeType.dropdown,
+      options: ['30', '32', '34', '36'],
+    ),
+    ProductAttribute(
+      key: 'wash_type',
+      label: 'Wash Type',
+      type: AttributeType.dropdown,
+      options: ['Dark Wash', 'Medium Wash', 'Light Wash', 'Raw Denim', 'Distressed'],
+    ),
+  ],
+  'Cotton Fabrics': [
+    ProductAttribute(
+      key: 'available_colors',
+      label: 'Available Colors',
+      type: AttributeType.multiSelect,
+      options: ['White', 'Cream', 'Beige', 'Black', 'Navy', 'Red', 'Blue', 'Green'],
+    ),
+    ProductAttribute(
+      key: 'fabric_width',
+      label: 'Width (inches)',
+      type: AttributeType.dropdown,
+      options: ['36', '44', '54', '60'],
+    ),
+    ProductAttribute(
+      key: 'thread_count',
+      label: 'Thread Count',
+      type: AttributeType.dropdown,
+      options: ['200', '300', '400', '600', '800', '1000+'],
+    ),
+    ProductAttribute(
+      key: 'material_composition',
+      label: 'Material Composition',
+      type: AttributeType.text,
+      hint: 'e.g., 100% Cotton',
+    ),
+  ],
+  'Smartphones & Accessories': [
+    ProductAttribute(
+      key: 'storage',
+      label: 'Storage (GB)',
+      type: AttributeType.dropdown,
+      options: ['64', '128', '256', '512', '1024'],
+    ),
+    ProductAttribute(
+      key: 'ram',
+      label: 'RAM (GB)',
+      type: AttributeType.dropdown,
+      options: ['4', '6', '8', '12', '16'],
+    ),
+    ProductAttribute(
+      key: 'color',
+      label: 'Color',
+      type: AttributeType.dropdown,
+      options: ['Black', 'White', 'Blue', 'Gold', 'Silver', 'Green', 'Purple'],
+    ),
+    ProductAttribute(
+      key: 'condition_details',
+      label: 'Condition Details',
+      type: AttributeType.text,
+    ),
+  ],
+  'Computers & Laptops': [
+    ProductAttribute(
+      key: 'processor',
+      label: 'Processor',
+      type: AttributeType.dropdown,
+      options: ['Intel i3', 'Intel i5', 'Intel i7', 'Intel i9', 'AMD Ryzen 3', 'AMD Ryzen 5', 'AMD Ryzen 7', 'AMD Ryzen 9'],
+    ),
+    ProductAttribute(
+      key: 'ram',
+      label: 'RAM (GB)',
+      type: AttributeType.dropdown,
+      options: ['4', '8', '16', '32', '64'],
+    ),
+    ProductAttribute(
+      key: 'storage',
+      label: 'Storage (GB)',
+      type: AttributeType.dropdown,
+      options: ['128', '256', '512', '1024', '2048'],
+    ),
+    ProductAttribute(
+      key: 'screen_size',
+      label: 'Screen Size (inches)',
+      type: AttributeType.dropdown,
+      options: ['13', '14', '15.6', '16', '17'],
+    ),
+  ],
+};
+
+List<ProductAttribute> getAttributesForSubcategory(String subcategory) {
+  return subcategoryAttributes[subcategory] ?? [];
+}

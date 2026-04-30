@@ -32,6 +32,10 @@ class _AddProductPageState extends State<AddProductPage> {
   final _picker = ImagePicker();
   final _supabase = Supabase.instance.client;
 
+  // Dynamic attributes
+  Map<String, dynamic> _attributes = {};
+  Map<String, List<String>> _multiSelectValues = {};
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +55,17 @@ class _AddProductPageState extends State<AddProductPage> {
             orElse: () => ProductCategories.categories.first,
           )
           .id;
+
+      // Load existing attributes if editing
+      if (product.attributes != null) {
+        _attributes = Map<String, dynamic>.from(product.attributes!);
+        // Extract multi-select values
+        _attributes.forEach((key, value) {
+          if (value is List) {
+            _multiSelectValues[key] = List<String>.from(value);
+          }
+        });
+      }
     }
   }
 
@@ -112,7 +127,7 @@ class _AddProductPageState extends State<AddProductPage> {
         productData['seller_id'] = userId;
         productData['is_local_brand'] = false;
         productData['allow_chat'] = true;
-        productData['attributes'] = {};
+        productData['attributes'] = _attributes.isNotEmpty ? _attributes : {};
 
         final inserted = await _supabase
             .from('products')
@@ -158,6 +173,159 @@ class _AddProductPageState extends State<AddProductPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Widget _buildDynamicAttributes() {
+    if (_selectedCategoryId == null || _selectedSubcategory == null) {
+      return const SizedBox();
+    }
+
+    final attrs = getAttributesForSubcategory(_selectedSubcategory!);
+
+    if (attrs.isEmpty) return const SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Product Specifications',
+            style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        ...attrs.map((attr) => _buildAttributeField(attr)),
+      ],
+    );
+  }
+
+  Widget _buildAttributeField(ProductAttribute attr) {
+    switch (attr.type) {
+      case AttributeType.multiSelect:
+        return _buildMultiSelectField(attr);
+      case AttributeType.dropdown:
+        return _buildDropdownAttributeField(attr);
+      case AttributeType.text:
+        return _buildTextAttributeField(attr);
+      case AttributeType.number:
+        return _buildNumberAttributeField(attr);
+      case AttributeType.boolean:
+        return _buildBooleanAttributeField(attr);
+    }
+  }
+
+  Widget _buildMultiSelectField(ProductAttribute attr) {
+    final selected = _multiSelectValues[attr.key] ?? [];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(attr.label,
+              style: const TextStyle(fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: attr.options!.map((option) {
+              final isSelected = selected.contains(option);
+              return FilterChip(
+                label: Text(option),
+                selected: isSelected,
+                onSelected: (val) {
+                  setState(() {
+                    if (val) {
+                      selected.add(option);
+                    } else {
+                      selected.remove(option);
+                    }
+                    _multiSelectValues[attr.key] = selected;
+                    _attributes[attr.key] = selected;
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownAttributeField(ProductAttribute attr) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        value: _attributes[attr.key] as String?,
+        decoration: InputDecoration(
+          labelText: attr.label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        items: attr.options!.map((option) {
+          return DropdownMenuItem(value: option, child: Text(option));
+        }).toList(),
+        onChanged: (val) {
+          setState(() {
+            _attributes[attr.key] = val;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildTextAttributeField(ProductAttribute attr) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: TextEditingController(text: _attributes[attr.key] as String? ?? ''),
+        decoration: InputDecoration(
+          labelText: attr.label,
+          hintText: attr.hint,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        onChanged: (val) {
+          setState(() {
+            _attributes[attr.key] = val;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildNumberAttributeField(ProductAttribute attr) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: TextEditingController(text: _attributes[attr.key]?.toString() ?? ''),
+        decoration: InputDecoration(
+          labelText: attr.label,
+          hintText: attr.hint,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        keyboardType: TextInputType.number,
+        onChanged: (val) {
+          setState(() {
+            _attributes[attr.key] = double.tryParse(val);
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildBooleanAttributeField(ProductAttribute attr) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Text(attr.label,
+              style: const TextStyle(fontWeight: FontWeight.w500)),
+          const Spacer(),
+          Switch(
+            value: _attributes[attr.key] as bool? ?? false,
+            onChanged: (val) {
+              setState(() {
+                _attributes[attr.key] = val;
+              });
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -262,8 +430,15 @@ class _AddProductPageState extends State<AddProductPage> {
                     : ProductCategories.getSubcategories(_selectedCategoryId!).map((sub) {
                         return DropdownMenuItem(value: sub, child: Text(sub));
                       }).toList(),
-                onChanged: (v) => setState(() => _selectedSubcategory = v),
+                onChanged: (v) => setState(() {
+                  _selectedSubcategory = v;
+                  // Clear attributes when subcategory changes
+                  _attributes.clear();
+                  _multiSelectValues.clear();
+                }),
               ),
+              const SizedBox(height: 16),
+              _buildDynamicAttributes(),
               const SizedBox(height: 16),
               Row(
                 children: [

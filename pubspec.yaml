@@ -1,6 +1,6 @@
 name: aurora
-description: "A new Flutter project."
-publish_to: "none"
+description: "A B2B marketplace for sellers and factories."
+publish_to: 'none'
 version: 0.1.0+1
 
 environment:
@@ -17,9 +17,14 @@ dependencies:
   permission_handler: ^12.0.1
   shared_preferences: ^2.3.5
   provider: ^6.1.5
-  vault_storage: ^4.0.0
+  vault_analog: ^4.0.0
   image_picker: ^1.2.2
   debug_print: ^0.0.1+1
+  flutter_analog: ^5.1.0
+  cached_network_image: ^3.4.1
+  flutter_ri verpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
 flutter:
   uses-material-design: true
   generate: true

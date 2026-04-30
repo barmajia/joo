@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SupabaseAuth extends ChangeNotifier {
   User? _user;
@@ -7,10 +8,7 @@ class SupabaseAuth extends ChangeNotifier {
   User? get user => _user;
   bool get isLoggedIn => _user != null;
 
-  Future<void> signUp({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> signUp({required String email, required String password}) async {
     try {
       final response = await Supabase.instance.client.auth.signUp(
         email: email,
@@ -23,10 +21,7 @@ class SupabaseAuth extends ChangeNotifier {
     }
   }
 
-  Future<bool> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> signIn({required String email, required String password}) async {
     try {
       final response = await Supabase.instance.client.auth.signInWithPassword(
         email: email,
