@@ -23,7 +23,7 @@ dependencies:
   intl: ^0.20.2
   cached_network_image: ^3.4.1
   image_picker: ^1.2.2
-
+  connectivity_plus: ^7.1.1
   # Location & permissions
   geolocator: ^14.0.2
   permission_handler: ^12.0.1

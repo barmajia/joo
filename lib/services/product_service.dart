@@ -1,75 +1,148 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/product/productModel.dart';
 import 'package:aurora/models/product/product_deal.dart';
-import 'package:aurora/models/product/product_secret.dart';
 import 'package:aurora/storage/product_vault_storage.dart';
 import 'package:aurora/storage/product_secrets_storage.dart';
+import 'package:aurora/models/product/product_secret.dart';
 
 class ProductService {
-  final SupabaseClient _supabase = Supabase.instance.client;
-  late final ProductVaultStorage _productVault;
-  late final ProductSecretsStorage _secretsStorage;
+  ProductVaultStorage? _productVault;
+  ProductSecretsStorage? _secretsStorage;
 
-  ProductService() {
-    _init();
+  final _supabase = Supabase.instance.client;
+
+  Future<ProductVaultStorage> get _vault async {
+    _productVault ??= await ProductVaultStorage.getInstance();
+    return _productVault!;
   }
 
-  Future<void> _init() async {
-    _productVault = await ProductVaultStorage.getInstance();
-    _secretsStorage = await ProductSecretsStorage.getInstance();
+  Future<ProductSecretsStorage> get _secrets async {
+    _secretsStorage ??= await ProductSecretsStorage.getInstance();
+    return _secretsStorage!;
   }
+
+  ProductService();
 
   Future<List<Product>> getSellerProducts(String sellerId) async {
     try {
-      // Check vault first
-      await _init();
-      final cachedProducts = _productVault.getSellerProducts(sellerId);
-      if (cachedProducts.isNotEmpty) return cachedProducts;
+      final vault = await _vault;
+      final cached = vault.getSellerProducts(sellerId);
+      if (cached.isNotEmpty) {
+        debugPrint(
+          '[ProductService] Loaded ${cached.length} products from cache',
+        );
+        return cached;
+      }
 
-      // Fallback to Supabase
+      debugPrint(
+        '[ProductService] Fetching products from Supabase for $sellerId',
+      );
       final response = await _supabase
           .from('products')
           .select()
           .eq('seller_id', sellerId)
-          .eq('is_deleted', false)
           .order('created_at', ascending: false);
 
-      final products = (response as List).map((json) => Product.fromJson(json)).toList();
+      final products = response
+          .map((json) => Product.fromJson(json as Map<String, dynamic>))
+          .toList();
 
-      // Cache in vault
-      await _productVault.saveSellerProducts(sellerId, products);
+      await vault.saveSellerProducts(sellerId, products);
+      debugPrint('[ProductService] Cached ${products.length} products');
 
       return products;
-    } catch (e) {
-      debugPrint('[ProductService.getSellerProducts] Error: $e');
+    } catch (e, stack) {
+      debugPrint('[ProductService.getSellerProducts] Error: $e\n$stack');
       throw Exception('Failed to load products: $e');
     }
   }
 
-  Future<Product> getProductById(String productId) async {
+  Future<Product?> getProductById(String productId) async {
     try {
-      // Check vault first
-      await _init();
-      final cachedProduct = _productVault.getProduct(productId);
-      if (cachedProduct != null) return cachedProduct;
+      final vault = await _vault;
+      final cached = vault.getProduct(productId);
+      if (cached != null) return cached;
 
-      // Fallback to Supabase
       final response = await _supabase
           .from('products')
           .select()
           .eq('id', productId)
+          .maybeSingle();
+
+      if (response == null) return null;
+
+      final product = Product.fromJson(response);
+      await vault.saveProduct(productId, product);
+      return product;
+    } catch (e) {
+      debugPrint('[ProductService.getProductById] Error: $e');
+      return null;
+    }
+  }
+
+  Future<Product?> createProduct(Map<String, dynamic> productData) async {
+    try {
+      final response = await _supabase
+          .from('products')
+          .insert(productData)
+          .select()
           .single();
 
       final product = Product.fromJson(response);
 
-      // Cache in vault
-      await _productVault.saveProduct(productId, product);
+      final vault = await _vault;
+      await vault.saveProduct(product.id!, product);
+
+      final sellerProducts = vault.getSellerProducts(product.sellerId);
+      sellerProducts.add(product);
+      await vault.saveSellerProducts(product.sellerId, sellerProducts);
 
       return product;
     } catch (e) {
-      debugPrint('[ProductService.getProductById] Error: $e');
-      throw Exception('Failed to load product: $e');
+      debugPrint('[ProductService.createProduct] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Product?> updateProduct(
+    String productId,
+    Map<String, dynamic> updates,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('products')
+          .update(updates)
+          .eq('id', productId)
+          .select()
+          .single();
+
+      final product = Product.fromJson(response);
+
+      final vault = await _vault;
+      await vault.saveProduct(productId, product);
+
+      return product;
+    } catch (e) {
+      debugPrint('[ProductService.updateProduct] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> deleteProduct(String productId) async {
+    if (productId.isEmpty) return false;
+
+    try {
+      await _supabase.from('products').delete().eq('id', productId);
+
+      final vault = await _vault;
+      await vault.deleteProduct(productId);
+
+      return true;
+    } catch (e) {
+      debugPrint('[ProductService.deleteProduct] Error: $e');
+      return false;
     }
   }
 
@@ -82,19 +155,54 @@ class ProductService {
           .eq('is_active', true)
           .order('created_at', ascending: false);
 
-      return (response as List)
-          .map((json) => ProductDeal.fromJson(json))
+      return response
+          .map((json) => ProductDeal.fromJson(json as Map<String, dynamic>))
           .toList();
     } catch (e) {
       debugPrint('[ProductService.getProductDeals] Error: $e');
-      throw Exception('Failed to load product deals: $e');
+      return [];
+    }
+  }
+
+  Future<ProductDeal?> createDeal(Map<String, dynamic> dealData) async {
+    try {
+      final response = await _supabase
+          .from('product_deals')
+          .insert(dealData)
+          .select()
+          .single();
+
+      return ProductDeal.fromJson(response);
+    } catch (e) {
+      debugPrint('[ProductService.createDeal] Error: $e');
+      return null;
+    }
+  }
+
+  Future<bool> updateDeal(String dealId, Map<String, dynamic> updates) async {
+    try {
+      await _supabase.from('product_deals').update(updates).eq('id', dealId);
+      return true;
+    } catch (e) {
+      debugPrint('[ProductService.updateDeal] Error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteDeal(String dealId) async {
+    try {
+      await _supabase.from('product_deals').delete().eq('id', dealId);
+      return true;
+    } catch (e) {
+      debugPrint('[ProductService.deleteDeal] Error: $e');
+      return false;
     }
   }
 
   Future<List<ProductSecret>> getProductSecrets(String productId) async {
     try {
-      await _init();
-      return await _secretsStorage.getAllProductSecrets(productId);
+      final secrets = await _secrets;
+      return await secrets.getAllProductSecrets(productId);
     } catch (e) {
       debugPrint('[ProductService.getProductSecrets] Error: $e');
       throw Exception('Failed to load product secrets: $e');
@@ -107,8 +215,8 @@ class ProductService {
     required String secretValue,
   }) async {
     try {
-      await _init();
-      await _secretsStorage.saveProductSecret(
+      final secrets = await _secrets;
+      await secrets.saveProductSecret(
         productId: productId,
         secretKey: secretKey,
         secretValue: secretValue,
@@ -119,29 +227,30 @@ class ProductService {
     }
   }
 
-  Future<bool> deleteProduct(String productId) async {
-    try {
-      await _supabase.from('products').delete().eq('id', productId);
-
-      // Remove from vault
-      await _init();
-      await _productVault.deleteProduct(productId);
-      await _secretsStorage.deleteAllProductSecrets(productId);
-
-      return true;
-    } catch (e) {
-      debugPrint('[ProductService.deleteProduct] Error: $e');
-      return false;
-    }
-  }
-
   Future<void> refreshVault(String sellerId) async {
     try {
-      await _init();
-      await _productVault.deleteSellerProducts(sellerId);
+      final vault = await _vault;
+      await vault.deleteSellerProducts(sellerId);
       await getSellerProducts(sellerId);
     } catch (e) {
       debugPrint('[ProductService.refreshVault] Error: $e');
     }
+  }
+
+  Future<void> clearCache() async {
+    try {
+      final vault = await _vault;
+      await vault.clearAllCachedProducts();
+      _productVault = null;
+    } catch (e) {
+      debugPrint('[ProductService.clearCache] Error: $e');
+    }
+  }
+
+  Map<String, dynamic> getCacheStatus() {
+    return {
+      'vaultInitialized': _productVault != null,
+      'secretsInitialized': _secretsStorage != null,
+    };
   }
 }
