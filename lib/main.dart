@@ -1,5 +1,6 @@
 import 'package:aurora/pages/seller/add_product_page.dart';
 import 'package:aurora/pages/seller/products_page.dart';
+import 'package:aurora/pages/analysis/analysis_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -83,6 +84,7 @@ class AuroraApp extends StatelessWidget {
         '/welcome': (context) => const WelcomePage(),
         '/home': (context) => const Homepapge(),
         '/customers': (context) => const CustomerListPage(),
+        '/analytics': (context) => const AnalysisPage(),
       },
       home: const SplashScreen(),
     );

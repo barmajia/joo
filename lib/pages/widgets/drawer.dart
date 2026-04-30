@@ -203,6 +203,7 @@ class _FixidDrawerState extends State<FixidDrawer> {
                   title: 'Analytics',
                   onTap: () {
                     Navigator.pop(context);
+                    Navigator.of(context).pushNamed('/analytics');
                   },
                 ),
                 const SizedBox(height: 8),
