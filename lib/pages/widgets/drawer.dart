@@ -185,7 +185,7 @@ class _FixidDrawerState extends State<FixidDrawer> {
                   icon: Icons.inventory_2,
                   title: 'Products',
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/seller_product');
                   },
                 ),
                 if (_isSeller) ...[

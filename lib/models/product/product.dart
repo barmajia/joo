@@ -72,8 +72,8 @@ class AuroraProduct {
       currency: json['currency'] as String?,
       images: json['images'] != null
           ? (json['images'] as List)
-              .map((e) => ProductImage.fromJson(e as Map<String, dynamic>))
-              .toList()
+                .map((e) => ProductImage.fromJson(e as Map<String, dynamic>))
+                .toList()
           : null,
       qrData: json['qr_data'] as String?,
       averageRating: (json['average_rating'] as num?)?.toDouble(),
@@ -123,8 +123,6 @@ class AuroraProduct {
   }
 
   bool get isInStock => (quantity ?? 0) > 0;
-
-  String? get currency => currency;
 }
 
 class ProductImage {
@@ -134,10 +132,7 @@ class ProductImage {
   ProductImage({this.url, this.id});
 
   factory ProductImage.fromJson(Map<String, dynamic> json) {
-    return ProductImage(
-      url: json['url'] as String?,
-      id: json['id'] as String?,
-    );
+    return ProductImage(url: json['url'] as String?, id: json['id'] as String?);
   }
 
   Map<String, dynamic> toJson() => {'url': url, 'id': id};

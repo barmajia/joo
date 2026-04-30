@@ -42,7 +42,10 @@ class _HomepapgeState extends State<Homepapge> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: FixidDrawer(),
+      drawerEdgeDragWidth: double.infinity,
+      drawerEnableOpenDragGesture: true,
+
+      drawer: const FixidDrawer(),
       appBar: AppBar(
         title: const Text('A U R O R A'),
         centerTitle: true,
@@ -211,7 +214,7 @@ class _HomepapgeState extends State<Homepapge> {
           childAspectRatio: 1.5,
           children: [
             _buildActionCard('Products', Icons.inventory_2, Colors.blue, () {
-              Navigator.of(context).pushNamed('/products');
+              Navigator.of(context).pushNamed('/seller_products');
             }),
             _buildActionCard('Customers', Icons.people, Colors.green, () {
               Navigator.of(context).pushNamed('/customers');

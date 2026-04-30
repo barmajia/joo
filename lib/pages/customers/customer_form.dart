@@ -1,0 +1,172 @@
+import 'package:flutter/material.dart';
+import 'package:aurora/models/customers/customermodel.dart';
+import 'package:aurora/models/analysis/enums.dart';
+import 'package:aurora/services/customer_service.dart';
+
+class CustomerFormPage extends StatefulWidget {
+  final Customer? customer;
+
+  const CustomerFormPage({super.key, this.customer});
+
+  @override
+  State<CustomerFormPage> createState() => _CustomerFormPageState();
+}
+
+class _CustomerFormPageState extends State<CustomerFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _notesController = TextEditingController();
+  AgeRange? _selectedAgeRange;
+  final CustomerService _customerService = CustomerService();
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.customer != null) {
+      _nameController.text = widget.customer!.name;
+      _phoneController.text = widget.customer!.phone;
+      _emailController.text = widget.customer!.email ?? '';
+      _notesController.text = widget.customer!.notes ?? '';
+      _selectedAgeRange = widget.customer!.ageRange;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveCustomer() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final customer = Customer(
+        id: widget.customer?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        name: _nameController.text,
+        phone: _phoneController.text,
+        email: _emailController.text.isNotEmpty ? _emailController.text : null,
+        ageRange: _selectedAgeRange,
+        notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+        sellerId: '',
+      );
+
+      if (widget.customer == null) {
+        await _customerService.createCustomer(customer);
+      } else {
+        await _customerService.updateCustomer(customer);
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.customer == null
+                ? 'Customer added successfully'
+                : 'Customer updated successfully'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+    setState(() => _isSaving = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.customer == null ? 'Add Customer' : 'Edit Customer'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Name *',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value == null || value.isEmpty ? 'Name is required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Phone *',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                validator: (value) =>
+                    value == null || value.isEmpty ? 'Phone is required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<AgeRange>(
+                value: _selectedAgeRange,
+                decoration: const InputDecoration(
+                  labelText: 'Age Range',
+                  border: OutlineInputBorder(),
+                ),
+                items: AgeRange.values.map((range) {
+                  return DropdownMenuItem(
+                    value: range,
+                    child: Text(range.value),
+                  );
+                }).toList(),
+                onChanged: (value) => setState(() => _selectedAgeRange = value),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  labelText: 'Notes',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _saveCustomer,
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(widget.customer == null ? 'Add' : 'Update'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

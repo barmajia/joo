@@ -1,3 +1,5 @@
+import 'package:aurora/pages/seller/add_product_page.dart';
+import 'package:aurora/pages/seller/products_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -76,6 +78,8 @@ class AuroraApp extends StatelessWidget {
       routes: {
         '/settings': (context) => const SettingsPage(),
         '/profile': (context) => const ProfilePage(),
+        '/seller_product': (context) => const SellerProductsPage(),
+        '/seller_add_product': (context) => const AddProductPage(),
         '/welcome': (context) => const WelcomePage(),
         '/home': (context) => const Homepapge(),
         '/customers': (context) => const CustomerListPage(),

@@ -123,8 +123,6 @@ class _AddProductPageState extends State<AddProductPage> {
     _brandController.dispose();
     _priceController.dispose();
     _quantityController.dispose();
-    _categoryController.dispose();
-    _subcategoryController.dispose();
     _skuController.dispose();
     _asinController.dispose();
     super.dispose();
