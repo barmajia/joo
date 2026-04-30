@@ -45,9 +45,7 @@ class ProductService {
           .eq('seller_id', sellerId)
           .order('created_at', ascending: false);
 
-      final products = response
-          .map((json) => Product.fromJson(json as Map<String, dynamic>))
-          .toList();
+      final products = response.map((json) => Product.fromJson(json)).toList();
 
       await vault.saveSellerProducts(sellerId, products);
       debugPrint('[ProductService] Cached ${products.length} products');
@@ -155,9 +153,7 @@ class ProductService {
           .eq('is_active', true)
           .order('created_at', ascending: false);
 
-      return response
-          .map((json) => ProductDeal.fromJson(json as Map<String, dynamic>))
-          .toList();
+      return response.map((json) => ProductDeal.fromJson(json)).toList();
     } catch (e) {
       debugPrint('[ProductService.getProductDeals] Error: $e');
       return [];
@@ -246,6 +242,117 @@ class ProductService {
       debugPrint('[ProductService.clearCache] Error: $e');
     }
   }
+
+  Future<void> deductQuantity(
+    String productId,
+    int quantityDeducted,
+    String sellerId,
+  ) async {
+    try {
+      final vault = await _vault;
+      Product? product = vault.getProduct(productId);
+
+      if (product == null) {
+        final sellerProducts = vault.getSellerProducts(sellerId);
+        product = sellerProducts.firstWhere((p) => p.id == productId);
+      }
+
+      final newQuantity = product.quantity - quantityDeducted;
+
+      if (newQuantity < 0) {
+        throw Exception(
+          'Insufficient stock for "${product.title}". Available: ${product.quantity}',
+        );
+      }
+
+      final updated = product.copyWith(quantity: newQuantity);
+
+      // Always update vault cache first
+      final sellerProducts = vault.getSellerProducts(sellerId);
+      final index = sellerProducts.indexWhere((p) => p.id == productId);
+      if (index != -1) {
+        sellerProducts[index] = updated;
+        await vault.saveSellerProducts(sellerId, sellerProducts);
+      }
+
+      await vault.saveProduct(productId, updated);
+
+      // Try Supabase, but don't fail if it rejects
+      try {
+        if (newQuantity == 0) {
+          debugPrint(
+            '[ProductService.deductQuantity] Product ${product.title} out of stock, deleting',
+          );
+          await _supabase.from('products').delete().eq('id', productId);
+          await vault.deleteProduct(productId);
+
+          final updatedList = vault
+              .getSellerProducts(sellerId)
+              .where((p) => p.id != productId)
+              .toList();
+          await vault.saveSellerProducts(sellerId, updatedList);
+        } else {
+          await _supabase
+              .from('products')
+              .update({'quantity': newQuantity})
+              .eq('id', productId);
+        }
+      } catch (supabaseError) {
+        debugPrint(
+          '[ProductService.deductQuantity] Supabase RLS error, vault updated: $supabaseError',
+        );
+      }
+      } catch (e) {
+        debugPrint('[ProductService.deductQuantity] Error: $e');
+        rethrow;
+      }
+    }
+
+    Future<void> restoreQuantity(String productId, int quantityToRestore, String sellerId) async {
+      try {
+        final vault = await _vault;
+        Product? product = vault.getProduct(productId);
+
+        if (product == null) {
+          final sellerProducts = vault.getSellerProducts(sellerId);
+          product = sellerProducts.firstWhere((p) => p.id == productId);
+        }
+
+        if (product == null) {
+          debugPrint('[ProductService.restoreQuantity] Product not found: $productId, skipping restore');
+          return;
+        }
+
+        final newQuantity = product.quantity + quantityToRestore;
+        final updated = product.copyWith(quantity: newQuantity);
+
+        // Update vault cache first
+        final sellerProducts = vault.getSellerProducts(sellerId);
+        final index = sellerProducts.indexWhere((p) => p.id == productId);
+        if (index != -1) {
+          sellerProducts[index] = updated;
+          await vault.saveSellerProducts(sellerId, sellerProducts);
+        } else {
+          sellerProducts.add(updated);
+          await vault.saveSellerProducts(sellerId, sellerProducts);
+        }
+
+        await vault.saveProduct(productId, updated);
+
+        // Try Supabase
+        try {
+          await _supabase
+              .from('products')
+              .update({'quantity': newQuantity})
+              .eq('id', productId);
+        } catch (supabaseError) {
+          debugPrint('[ProductService.restoreQuantity] Supabase error, vault updated: $supabaseError');
+        }
+      } catch (e) {
+        debugPrint('[ProductService.restoreQuantity] Error: $e');
+        rethrow;
+      }
+    }
 
   Map<String, dynamic> getCacheStatus() {
     return {

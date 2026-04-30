@@ -401,6 +401,58 @@ $$;
 ALTER FUNCTION "public"."add_seller_to_conversation"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."approve_factory_connection"("p_connection_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE v_conn RECORD; v_agreement_id UUID; v_secret_id UUID; v_shared_secret TEXT; v_payload TEXT;
+BEGIN
+  SELECT * INTO v_conn FROM public.factory_connections WHERE id = p_connection_id;
+  IF v_conn IS NULL THEN RAISE EXCEPTION 'Connection not found'; END IF;
+  IF v_conn.status != 'pending' THEN RAISE EXCEPTION 'Connection not pending'; END IF;
+  
+  IF auth.uid() != v_conn.seller_id AND auth.uid() != v_conn.factory_id THEN
+    RAISE EXCEPTION 'Unauthorized to approve this connection';
+  END IF;
+
+  -- Activate connection
+  UPDATE public.factory_connections
+  SET status = 'accepted', accepted_at = NOW(), is_active = TRUE, 
+      auto_billing_enabled = TRUE, updated_at = NOW()
+  WHERE id = p_connection_id
+  RETURNING * INTO v_conn;
+
+  -- Auto-create billing agreement
+  INSERT INTO public.factory_seller_agreements (
+    connection_id, factory_id, seller_id, commission_rate, auto_split_enabled
+  ) VALUES (
+    p_connection_id, v_conn.factory_id, v_conn.seller_id, 5.00, TRUE
+  ) RETURNING id INTO v_agreement_id;
+
+  -- Generate & store shared secret in Vault
+  v_shared_secret := encode(gen_random_bytes(32), 'hex');
+  v_payload := jsonb_build_object(
+    'shared_secret', v_shared_secret,
+    'terms_hash', md5(p_connection_id::text || NOW()::text),
+    'created_at', NOW()
+  )::text;
+
+  SELECT vault.create_secret(v_payload, 'conn_' || p_connection_id::text, 'Factory-Seller trusted connection secret')
+  INTO v_secret_id;
+
+  UPDATE public.factory_connections SET vault_secret_id = v_secret_id WHERE id = p_connection_id;
+
+  -- Notify both parties
+  INSERT INTO public.notifications (user_id, type, title, message, metadata) VALUES 
+    (v_conn.factory_id, 'deal', '✅ Connection Activated', 'Seller accepted your connection. Auto-billing is now enabled.', jsonb_build_object('connection_id', p_connection_id)),
+    (v_conn.seller_id, 'deal', '✅ Connection Activated', 'Factory connection is now active. You can share deals & auto-split payments.', jsonb_build_object('connection_id', p_connection_id));
+
+  RETURN jsonb_build_object('success', true, 'connection_id', p_connection_id, 'agreement_id', v_agreement_id, 'is_active', true);
+END; $$;
+
+
+ALTER FUNCTION "public"."approve_factory_connection"("p_connection_id" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."archive_health_messages"() RETURNS integer
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -1645,6 +1697,40 @@ $$;
 
 
 ALTER FUNCTION "public"."create_direct_conversation"("p_target_user_id" "uuid", "p_context" "text", "p_product_id" "uuid", "p_appointment_id" "uuid", "p_listing_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."create_factory_seller_order"("p_buyer_id" "uuid", "p_seller_id" "uuid", "p_items" "jsonb", "p_total" numeric) RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE v_order_id UUID; v_agreement RECORD; v_transaction_id UUID;
+BEGIN
+  -- Verify active connection & agreement
+  SELECT * INTO v_agreement FROM public.factory_seller_agreements
+  WHERE ((factory_id = p_buyer_id AND seller_id = p_seller_id) OR (factory_id = p_seller_id AND seller_id = p_buyer_id))
+  AND status = 'active' AND auto_split_enabled = TRUE;
+
+  IF v_agreement IS NULL THEN
+    RAISE EXCEPTION 'No active billing agreement between these parties';
+  END IF;
+
+  -- Create order
+  INSERT INTO public.orders (user_id, seller_id, total, status, payment_status, payment_method)
+  VALUES (p_buyer_id, p_seller_id, p_total, 'confirmed', 'completed', 'wallet')
+  RETURNING id INTO v_order_id;
+
+  -- Create payment transaction record for split function
+  INSERT INTO public.payment_transactions (order_id, user_id, amount, currency, status, payment_gateway, payment_method)
+  VALUES (v_order_id, p_buyer_id, p_total, 'EGP', 'success', 'wallet', 'wallet')
+  RETURNING id INTO v_transaction_id;
+
+  -- Auto-split using your existing function
+  PERFORM public.split_payment_to_parties(v_order_id, v_transaction_id, p_total);
+
+  RETURN jsonb_build_object('success', true, 'order_id', v_order_id, 'auto_split', true);
+END; $$;
+
+
+ALTER FUNCTION "public"."create_factory_seller_order"("p_buyer_id" "uuid", "p_seller_id" "uuid", "p_items" "jsonb", "p_total" numeric) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."create_health_conversation_on_appointment"() RETURNS "trigger"
@@ -5100,6 +5186,25 @@ $$;
 ALTER FUNCTION "public"."initialize_user_notification_settings"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."insert_sales_fact"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    IF NEW.payment_status = 'completed' AND OLD.payment_status != 'completed' THEN
+        INSERT INTO seller_sales_fact (seller_id, order_id, customer_id, sale_date, order_total, payment_method)
+        VALUES (NEW.seller_id, NEW.id, NEW.user_id, NEW.created_at, NEW.total, NEW.payment_method)
+        ON CONFLICT (order_id) DO UPDATE SET status = 'completed', order_total = EXCLUDED.order_total;
+    ELSIF NEW.status IN ('cancelled', 'refunded') AND OLD.status NOT IN ('cancelled', 'refunded') THEN
+        UPDATE seller_sales_fact SET status = NEW.status WHERE order_id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."insert_sales_fact"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."is_admin"("p_user_id" "uuid") RETURNS boolean
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public', 'pg_catalog'
@@ -5787,6 +5892,42 @@ $$;
 ALTER FUNCTION "public"."products_tsvector_trigger"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."reactivate_connection"("p_connection_id" "uuid", "p_reconnection_token" "text") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE v_conn RECORD; v_secret_payload TEXT; v_new_token TEXT;
+BEGIN
+  SELECT * INTO v_conn FROM public.factory_connections WHERE id = p_connection_id;
+  IF v_conn IS NULL THEN RAISE EXCEPTION 'Connection not found'; END IF;
+  IF v_conn.reconnection_token != p_reconnection_token THEN RAISE EXCEPTION 'Invalid reconnection token'; END IF;
+  IF v_conn.status != 'accepted' THEN RAISE EXCEPTION 'Connection not approved'; END IF;
+  IF v_conn.session_expiry < NOW() THEN RAISE EXCEPTION 'Session expired. Full re-approval required.'; END IF;
+
+  -- Read secret from Vault
+  SELECT vault.read_secret(v_conn.vault_secret_id) INTO v_secret_payload;
+  IF v_secret_payload IS NULL THEN RAISE EXCEPTION 'Connection secret missing or revoked'; END IF;
+
+  -- Rotate token & extend session
+  v_new_token := gen_random_uuid()::text;
+  UPDATE public.factory_connections 
+  SET last_reactivated_at = NOW(), 
+      session_expiry = NOW() + INTERVAL '30 days',
+      reconnection_token = v_new_token
+  WHERE id = p_connection_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'connection_id', p_connection_id,
+    'secret_payload', v_secret_payload,
+    'new_reconnection_token', v_new_token,
+    'expires_at', NOW() + INTERVAL '30 days'
+  );
+END; $$;
+
+
+ALTER FUNCTION "public"."reactivate_connection"("p_connection_id" "uuid", "p_reconnection_token" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."register_app_device"("p_token" "text", "p_platform" "text", "p_app_version" "text" DEFAULT NULL::"text", "p_device_model" "text" DEFAULT NULL::"text", "p_os_version" "text" DEFAULT NULL::"text") RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -5847,6 +5988,50 @@ $$;
 
 
 ALTER FUNCTION "public"."register_push_subscription"("p_token" "text", "p_platform" "text", "p_app_version" "text", "p_device_model" "text", "p_os_version" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."request_factory_connection"("p_factory_id" "uuid", "p_seller_id" "uuid", "p_notes" "text" DEFAULT NULL::"text") RETURNS "uuid"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE v_conn_id UUID;
+BEGIN
+  IF auth.uid() IS NULL OR (auth.uid() != p_factory_id AND auth.uid() != p_seller_id) THEN
+    RAISE EXCEPTION 'Unauthorized: You must be one of the parties';
+  END IF;
+
+  -- If previously rejected, revive it instead of violating unique constraint
+  IF EXISTS (
+    SELECT 1 FROM public.factory_connections 
+    WHERE factory_id = p_factory_id AND seller_id = p_seller_id AND status = 'rejected'
+  ) THEN
+    UPDATE public.factory_connections
+    SET status = 'pending', requested_at = NOW(), notes = p_notes, is_active = FALSE, updated_at = NOW()
+    WHERE factory_id = p_factory_id AND seller_id = p_seller_id
+    RETURNING id INTO v_conn_id;
+  ELSIF EXISTS (
+    SELECT 1 FROM public.factory_connections 
+    WHERE factory_id = p_factory_id AND seller_id = p_seller_id AND status IN ('pending', 'accepted')
+  ) THEN
+    RAISE EXCEPTION 'Connection already exists or is pending';
+  ELSE
+    INSERT INTO public.factory_connections (factory_id, seller_id, status, notes, is_active)
+    VALUES (p_factory_id, p_seller_id, 'pending', p_notes, FALSE)
+    RETURNING id INTO v_conn_id;
+  END IF;
+
+  -- Notify seller
+  INSERT INTO public.notifications (user_id, type, title, message, metadata)
+  VALUES (
+    p_seller_id, 'deal', '🏭 Factory Connection Request',
+    'A factory wants to connect with you for direct billing & deals.',
+    jsonb_build_object('connection_id', v_conn_id, 'factory_id', p_factory_id)
+  );
+
+  RETURN v_conn_id;
+END; $$;
+
+
+ALTER FUNCTION "public"."request_factory_connection"("p_factory_id" "uuid", "p_seller_id" "uuid", "p_notes" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."request_payout"("p_user_id" "uuid", "p_amount" numeric, "p_payout_method" "text", "p_bank_details" "jsonb" DEFAULT NULL::"jsonb", "p_idempotency_key" "text" DEFAULT NULL::"text") RETURNS "uuid"
@@ -7971,6 +8156,33 @@ $$;
 ALTER FUNCTION "public"."update_seller_product_count"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."update_seller_sales_fact"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+    IF NEW.payment_status = 'completed' AND (OLD.payment_status IS DISTINCT FROM 'completed') THEN
+        INSERT INTO seller_sales_fact (seller_id, order_id, customer_id, sale_date, order_total, payment_method, deal_id, status)
+        VALUES (NEW.seller_id, NEW.id, NEW.user_id, NEW.created_at, NEW.total, NEW.payment_method, NEW.deal_id, 'completed')
+        ON CONFLICT (order_id) DO UPDATE SET
+            order_total = EXCLUDED.order_total,
+            payment_method = EXCLUDED.payment_method,
+            status = 'completed',
+            deal_id = EXCLUDED.deal_id;
+    
+    ELSIF NEW.status IN ('cancelled', 'refunded') AND OLD.status NOT IN ('cancelled', 'refunded') THEN
+        UPDATE seller_sales_fact
+        SET status = NEW.status
+        WHERE order_id = NEW.id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_seller_sales_fact"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_seller_stats_on_order_delivered"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -9175,6 +9387,12 @@ CREATE TABLE IF NOT EXISTS "public"."factory_connections" (
     "notes" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
+    "is_active" boolean DEFAULT false,
+    "auto_billing_enabled" boolean DEFAULT false,
+    "vault_secret_id" "uuid",
+    "reconnection_token" "text" DEFAULT ("gen_random_uuid"())::"text",
+    "session_expiry" timestamp with time zone DEFAULT ("now"() + '30 days'::interval),
+    "last_reactivated_at" timestamp with time zone,
     CONSTRAINT "factory_connections_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'accepted'::"text", 'rejected'::"text", 'blocked'::"text"])))
 );
 
@@ -9195,7 +9413,7 @@ CREATE TABLE IF NOT EXISTS "public"."factory_production_logs" (
 ALTER TABLE "public"."factory_production_logs" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."products" (
+CREATE TABLE IF NOT EXISTS "public"."factory_products" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "asin" "text",
     "sku" "text",
@@ -9222,95 +9440,13 @@ CREATE TABLE IF NOT EXISTS "public"."products" (
     "allow_chat" boolean DEFAULT true,
     "search_vector" "tsvector",
     "is_deleted" boolean DEFAULT false,
-    CONSTRAINT "products_status_check" CHECK (("status" = ANY (ARRAY['draft'::"text", 'active'::"text", 'inactive'::"text"]))),
-    CONSTRAINT "valid_price" CHECK ((("price" IS NULL) OR ("price" >= (0)::numeric))),
-    CONSTRAINT "valid_quantity" CHECK (("quantity" >= 0))
+    CONSTRAINT "factory_products_status_check" CHECK (("status" = ANY (ARRAY['draft'::"text", 'active'::"text", 'inactive'::"text"]))),
+    CONSTRAINT "factory_products_valid_price" CHECK ((("price" IS NULL) OR ("price" >= (0)::numeric))),
+    CONSTRAINT "factory_products_valid_quantity" CHECK (("quantity" >= 0))
 );
 
 
-ALTER TABLE "public"."products" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."sellers" (
-    "user_id" "uuid" NOT NULL,
-    "email" "text" NOT NULL,
-    "full_name" "text" NOT NULL,
-    "firstname" "text",
-    "second_name" "text",
-    "thirdname" "text",
-    "fourth_name" "text",
-    "phone" "text",
-    "location" "text",
-    "currency" "text" DEFAULT 'USD'::"text",
-    "account_type" "text" DEFAULT 'seller'::"text",
-    "is_verified" boolean DEFAULT false,
-    "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"(),
-    "latitude" numeric(10,8),
-    "longitude" numeric(11,8),
-    "is_factory" boolean DEFAULT false,
-    "factory_license_url" "text",
-    "min_order_quantity" integer DEFAULT 1,
-    "wholesale_discount" numeric(5,2) DEFAULT 0,
-    "accepts_returns" boolean DEFAULT true,
-    "production_capacity" "text",
-    "verified_at" timestamp with time zone,
-    "allow_product_chats" boolean DEFAULT true,
-    "allow_custom_requests" boolean DEFAULT false,
-    "avatar_url" "text",
-    "bio" "text",
-    "response_rate" integer DEFAULT 0,
-    "website_url" "text",
-    "allow_middleman_promo" boolean DEFAULT true,
-    "require_middleman_approval" boolean DEFAULT false,
-    "store_slug" "text",
-    "store_name" "text",
-    "current_template_id" integer DEFAULT 1,
-    CONSTRAINT "sellers_latitude_check" CHECK ((("latitude" >= ('-90'::integer)::numeric) AND ("latitude" <= (90)::numeric))),
-    CONSTRAINT "sellers_longitude_check" CHECK ((("longitude" >= ('-180'::integer)::numeric) AND ("longitude" <= (180)::numeric)))
-);
-
-
-ALTER TABLE "public"."sellers" OWNER TO "postgres";
-
-
-CREATE OR REPLACE VIEW "public"."factory_products" AS
- SELECT "p"."id",
-    "p"."asin",
-    "p"."sku",
-    "p"."seller_id",
-    "p"."title",
-    "p"."description",
-    "p"."brand",
-    "p"."currency",
-    "p"."price",
-    "p"."quantity",
-    "p"."status",
-    "p"."brand_id",
-    "p"."is_local_brand",
-    "p"."attributes",
-    "p"."color_hex",
-    "p"."category",
-    "p"."subcategory",
-    "p"."images",
-    "p"."average_rating",
-    "p"."review_count",
-    "p"."title_description",
-    "p"."created_at",
-    "p"."updated_at",
-    "s"."full_name" AS "factory_name",
-    "s"."location" AS "factory_location",
-    "s"."latitude",
-    "s"."longitude",
-    "s"."wholesale_discount",
-    "s"."min_order_quantity",
-    ("p"."price" * ((1)::numeric - (COALESCE("s"."wholesale_discount", (0)::numeric) / (100)::numeric))) AS "wholesale_price"
-   FROM ("public"."products" "p"
-     JOIN "public"."sellers" "s" ON (("p"."seller_id" = "s"."user_id")))
-  WHERE (("s"."is_factory" = true) AND ("p"."status" = 'active'::"text") AND ("p"."is_local_brand" = true));
-
-
-ALTER VIEW "public"."factory_products" OWNER TO "postgres";
+ALTER TABLE "public"."factory_products" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."factory_profiles" (
@@ -9376,6 +9512,24 @@ CREATE TABLE IF NOT EXISTS "public"."factory_ratings" (
 
 
 ALTER TABLE "public"."factory_ratings" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."factory_seller_agreements" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "connection_id" "uuid",
+    "factory_id" "uuid",
+    "seller_id" "uuid",
+    "commission_rate" numeric(5,2) DEFAULT 5.00,
+    "payment_terms" "text" DEFAULT 'net_30'::"text",
+    "auto_split_enabled" boolean DEFAULT true,
+    "status" "text" DEFAULT 'active'::"text",
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "factory_seller_agreements_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'paused'::"text", 'terminated'::"text"])))
+);
+
+
+ALTER TABLE "public"."factory_seller_agreements" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."freelancer_orders" (
@@ -11230,6 +11384,42 @@ CREATE TABLE IF NOT EXISTS "public"."prescription_fulfillment" (
 ALTER TABLE "public"."prescription_fulfillment" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."products" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "asin" "text",
+    "sku" "text",
+    "seller_id" "uuid" NOT NULL,
+    "title" "text" NOT NULL,
+    "description" "text" NOT NULL,
+    "brand" "text" NOT NULL,
+    "currency" "text" DEFAULT 'USD'::"text",
+    "price" numeric(10,2),
+    "quantity" integer DEFAULT 0,
+    "status" "text" DEFAULT 'draft'::"text",
+    "brand_id" "text",
+    "is_local_brand" boolean DEFAULT false,
+    "attributes" "jsonb" DEFAULT '{}'::"jsonb",
+    "color_hex" "text",
+    "category" "text",
+    "subcategory" "text",
+    "images" "jsonb" DEFAULT '[]'::"jsonb",
+    "average_rating" numeric(3,2) DEFAULT 0,
+    "review_count" integer DEFAULT 0,
+    "title_description" "tsvector",
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "allow_chat" boolean DEFAULT true,
+    "search_vector" "tsvector",
+    "is_deleted" boolean DEFAULT false,
+    CONSTRAINT "products_status_check" CHECK (("status" = ANY (ARRAY['draft'::"text", 'active'::"text", 'inactive'::"text"]))),
+    CONSTRAINT "valid_price" CHECK ((("price" IS NULL) OR ("price" >= (0)::numeric))),
+    CONSTRAINT "valid_quantity" CHECK (("quantity" >= 0))
+);
+
+
+ALTER TABLE "public"."products" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "id" "uuid" NOT NULL,
     "email" "text",
@@ -11332,6 +11522,79 @@ CREATE TABLE IF NOT EXISTS "public"."seller_profiles" (
 
 
 ALTER TABLE "public"."seller_profiles" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."seller_sales_fact" (
+    "seller_id" "uuid" NOT NULL,
+    "order_id" "uuid" NOT NULL,
+    "customer_id" "uuid" NOT NULL,
+    "sale_date" timestamp with time zone NOT NULL,
+    "order_total" numeric NOT NULL,
+    "payment_method" "text",
+    "status" "text" DEFAULT 'completed'::"text",
+    "deal_id" "uuid"
+);
+
+
+ALTER TABLE "public"."seller_sales_fact" OWNER TO "postgres";
+
+
+CREATE MATERIALIZED VIEW "public"."seller_sales_mv" AS
+ SELECT "seller_id",
+    "id" AS "order_id",
+    "user_id" AS "customer_id",
+    "created_at" AS "sale_date",
+    "total" AS "order_total",
+    "payment_method"
+   FROM "public"."orders" "o"
+  WHERE (("payment_status" = 'completed'::"text") AND ("status" <> ALL (ARRAY['cancelled'::"text", 'refunded'::"text"])))
+  WITH NO DATA;
+
+
+ALTER MATERIALIZED VIEW "public"."seller_sales_mv" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."sellers" (
+    "user_id" "uuid" NOT NULL,
+    "email" "text" NOT NULL,
+    "full_name" "text" NOT NULL,
+    "firstname" "text",
+    "second_name" "text",
+    "thirdname" "text",
+    "fourth_name" "text",
+    "phone" "text",
+    "location" "text",
+    "currency" "text" DEFAULT 'USD'::"text",
+    "account_type" "text" DEFAULT 'seller'::"text",
+    "is_verified" boolean DEFAULT false,
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    "latitude" numeric(10,8),
+    "longitude" numeric(11,8),
+    "is_factory" boolean DEFAULT false,
+    "factory_license_url" "text",
+    "min_order_quantity" integer DEFAULT 1,
+    "wholesale_discount" numeric(5,2) DEFAULT 0,
+    "accepts_returns" boolean DEFAULT true,
+    "production_capacity" "text",
+    "verified_at" timestamp with time zone,
+    "allow_product_chats" boolean DEFAULT true,
+    "allow_custom_requests" boolean DEFAULT false,
+    "avatar_url" "text",
+    "bio" "text",
+    "response_rate" integer DEFAULT 0,
+    "website_url" "text",
+    "allow_middleman_promo" boolean DEFAULT true,
+    "require_middleman_approval" boolean DEFAULT false,
+    "store_slug" "text",
+    "store_name" "text",
+    "current_template_id" integer DEFAULT 1,
+    CONSTRAINT "sellers_latitude_check" CHECK ((("latitude" >= ('-90'::integer)::numeric) AND ("latitude" <= (90)::numeric))),
+    CONSTRAINT "sellers_longitude_check" CHECK ((("longitude" >= ('-180'::integer)::numeric) AND ("longitude" <= (180)::numeric)))
+);
+
+
+ALTER TABLE "public"."sellers" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."sellers_backup" (
@@ -12288,8 +12551,23 @@ ALTER TABLE ONLY "public"."factory_connections"
 
 
 
+ALTER TABLE ONLY "public"."factory_connections"
+    ADD CONSTRAINT "factory_connections_reconnection_token_key" UNIQUE ("reconnection_token");
+
+
+
 ALTER TABLE ONLY "public"."factory_production_logs"
     ADD CONSTRAINT "factory_production_logs_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."factory_products"
+    ADD CONSTRAINT "factory_products_asin_key" UNIQUE ("asin");
+
+
+
+ALTER TABLE ONLY "public"."factory_products"
+    ADD CONSTRAINT "factory_products_pkey" PRIMARY KEY ("id");
 
 
 
@@ -12310,6 +12588,11 @@ ALTER TABLE ONLY "public"."factory_ratings"
 
 ALTER TABLE ONLY "public"."factory_ratings"
     ADD CONSTRAINT "factory_ratings_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."factory_seller_agreements"
+    ADD CONSTRAINT "factory_seller_agreements_pkey" PRIMARY KEY ("id");
 
 
 
@@ -12905,6 +13188,11 @@ ALTER TABLE ONLY "public"."reviews"
 
 ALTER TABLE ONLY "public"."seller_profiles"
     ADD CONSTRAINT "seller_profiles_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."seller_sales_fact"
+    ADD CONSTRAINT "seller_sales_fact_pkey" PRIMARY KEY ("order_id");
 
 
 
@@ -13508,6 +13796,18 @@ CREATE INDEX "idx_factories_user_id" ON "public"."factories" USING "btree" ("use
 
 
 
+CREATE INDEX "idx_factory_agreements_parties" ON "public"."factory_seller_agreements" USING "btree" ("factory_id", "seller_id");
+
+
+
+CREATE INDEX "idx_factory_agreements_status" ON "public"."factory_seller_agreements" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_factory_connections_active" ON "public"."factory_connections" USING "btree" ("is_active") WHERE ("is_active" = true);
+
+
+
 CREATE INDEX "idx_factory_connections_factory" ON "public"."factory_connections" USING "btree" ("factory_id");
 
 
@@ -13517,6 +13817,54 @@ CREATE INDEX "idx_factory_connections_seller" ON "public"."factory_connections" 
 
 
 CREATE INDEX "idx_factory_connections_status" ON "public"."factory_connections" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_factory_connections_token" ON "public"."factory_connections" USING "btree" ("reconnection_token");
+
+
+
+CREATE INDEX "idx_factory_products_attributes" ON "public"."factory_products" USING "gin" ("attributes");
+
+
+
+CREATE INDEX "idx_factory_products_brand" ON "public"."factory_products" USING "btree" ("brand");
+
+
+
+CREATE INDEX "idx_factory_products_category" ON "public"."factory_products" USING "btree" ("category");
+
+
+
+CREATE INDEX "idx_factory_products_created_at" ON "public"."factory_products" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_factory_products_price" ON "public"."factory_products" USING "btree" ("price");
+
+
+
+CREATE INDEX "idx_factory_products_quantity" ON "public"."factory_products" USING "btree" ("quantity") WHERE ("status" = 'active'::"text");
+
+
+
+CREATE INDEX "idx_factory_products_search" ON "public"."factory_products" USING "gin" ("title_description");
+
+
+
+CREATE INDEX "idx_factory_products_search_vector" ON "public"."factory_products" USING "gin" ("search_vector");
+
+
+
+CREATE INDEX "idx_factory_products_seller_id" ON "public"."factory_products" USING "btree" ("seller_id");
+
+
+
+CREATE INDEX "idx_factory_products_status" ON "public"."factory_products" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_factory_products_subcategory" ON "public"."factory_products" USING "btree" ("subcategory");
 
 
 
@@ -14284,6 +14632,30 @@ CREATE INDEX "idx_reviews_user_id" ON "public"."reviews" USING "btree" ("user_id
 
 
 
+CREATE INDEX "idx_seller_sales_fact_deal_id" ON "public"."seller_sales_fact" USING "btree" ("deal_id") WHERE ("deal_id" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_seller_sales_fact_seller_date" ON "public"."seller_sales_fact" USING "btree" ("seller_id", "sale_date" DESC);
+
+
+
+CREATE INDEX "idx_seller_sales_fact_seller_status" ON "public"."seller_sales_fact" USING "btree" ("seller_id", "status");
+
+
+
+CREATE UNIQUE INDEX "idx_seller_sales_mv_order_id" ON "public"."seller_sales_mv" USING "btree" ("order_id");
+
+
+
+CREATE INDEX "idx_seller_sales_mv_seller_amount" ON "public"."seller_sales_mv" USING "btree" ("seller_id", "order_total");
+
+
+
+CREATE INDEX "idx_seller_sales_mv_seller_date" ON "public"."seller_sales_mv" USING "btree" ("seller_id", "sale_date");
+
+
+
 CREATE INDEX "idx_sellers_location" ON "public"."sellers" USING "btree" ("latitude", "longitude");
 
 
@@ -14608,6 +14980,14 @@ CREATE OR REPLACE TRIGGER "trg_enforce_middleman_limit" BEFORE INSERT OR UPDATE 
 
 
 
+CREATE OR REPLACE TRIGGER "trg_factory_products_tsvector_update" BEFORE INSERT OR UPDATE ON "public"."factory_products" FOR EACH ROW EXECUTE FUNCTION "public"."products_tsvector_trigger"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_factory_products_updated_at" BEFORE UPDATE ON "public"."factory_products" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "trg_log_payment_status_change" AFTER UPDATE ON "public"."payment_intentions" FOR EACH ROW WHEN (("old"."status" IS DISTINCT FROM "new"."status")) EXECUTE FUNCTION "public"."log_payment_status_change"();
 
 
@@ -14641,6 +15021,14 @@ CREATE OR REPLACE TRIGGER "trg_push_prescription_created" AFTER INSERT ON "publi
 
 
 CREATE OR REPLACE TRIGGER "trg_restore_inventory_on_order_cancelled" AFTER UPDATE ON "public"."orders" FOR EACH ROW EXECUTE FUNCTION "public"."restore_product_inventory_on_cancel"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_sales_fact" AFTER UPDATE OF "payment_status", "status" ON "public"."orders" FOR EACH ROW EXECUTE FUNCTION "public"."insert_sales_fact"();
+
+
+
+CREATE OR REPLACE TRIGGER "trg_seller_sales_fact" AFTER UPDATE OF "payment_status", "status" ON "public"."orders" FOR EACH ROW EXECUTE FUNCTION "public"."update_seller_sales_fact"();
 
 
 
@@ -15087,6 +15475,21 @@ ALTER TABLE ONLY "public"."factory_ratings"
 
 ALTER TABLE ONLY "public"."factory_ratings"
     ADD CONSTRAINT "factory_ratings_seller_id_fkey" FOREIGN KEY ("seller_id") REFERENCES "public"."sellers"("user_id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."factory_seller_agreements"
+    ADD CONSTRAINT "factory_seller_agreements_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "public"."factory_connections"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."factory_seller_agreements"
+    ADD CONSTRAINT "factory_seller_agreements_factory_id_fkey" FOREIGN KEY ("factory_id") REFERENCES "public"."sellers"("user_id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."factory_seller_agreements"
+    ADD CONSTRAINT "factory_seller_agreements_seller_id_fkey" FOREIGN KEY ("seller_id") REFERENCES "public"."sellers"("user_id") ON DELETE CASCADE;
 
 
 
@@ -16967,6 +17370,10 @@ CREATE POLICY "factories_manage_own_production" ON "public"."factory_production_
 
 
 
+CREATE POLICY "factories_manage_own_products" ON "public"."factory_products" USING (("seller_id" = "auth"."uid"())) WITH CHECK (("seller_id" = "auth"."uid"()));
+
+
+
 CREATE POLICY "factories_update_own_connections" ON "public"."factory_connections" FOR UPDATE TO "authenticated" USING (("factory_id" = "auth"."uid"())) WITH CHECK (("factory_id" = "auth"."uid"()));
 
 
@@ -16990,6 +17397,9 @@ CREATE POLICY "factory_connections_view_own" ON "public"."factory_connections" F
 
 
 
+ALTER TABLE "public"."factory_products" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."factory_profiles" ENABLE ROW LEVEL SECURITY;
 
 
@@ -17006,6 +17416,9 @@ CREATE POLICY "factory_profiles_viewable_by_all" ON "public"."factory_profiles" 
 
 
 ALTER TABLE "public"."factory_ratings" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."factory_seller_agreements" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."freelancer_portfolio" ENABLE ROW LEVEL SECURITY;
@@ -17195,6 +17608,10 @@ ALTER TABLE "public"."idempotency_keys" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "idempotency_keys_user_own" ON "public"."idempotency_keys" TO "authenticated" USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "insert_own_agreements" ON "public"."factory_seller_agreements" FOR INSERT WITH CHECK ((("factory_id" = "auth"."uid"()) OR ("seller_id" = "auth"."uid"())));
 
 
 
@@ -17609,6 +18026,9 @@ CREATE POLICY "seller_profiles_view_public_anon" ON "public"."seller_profiles" F
 
 
 
+ALTER TABLE "public"."seller_sales_fact" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."sellers" ENABLE ROW LEVEL SECURITY;
 
 
@@ -17665,6 +18085,10 @@ CREATE POLICY "sellers_view_own_factory_connections" ON "public"."factory_connec
 
 
 CREATE POLICY "sellers_view_own_orders" ON "public"."orders" FOR SELECT TO "authenticated" USING (("seller_id" = "auth"."uid"()));
+
+
+
+CREATE POLICY "service_role_full_access_factory_products" ON "public"."factory_products" TO "service_role" USING (true) WITH CHECK (true);
 
 
 
@@ -17812,6 +18236,10 @@ ALTER TABLE "public"."template_requests" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."templates" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "update_own_agreements" ON "public"."factory_seller_agreements" FOR UPDATE USING ((("factory_id" = "auth"."uid"()) OR ("seller_id" = "auth"."uid"())));
+
 
 
 ALTER TABLE "public"."user_events" ENABLE ROW LEVEL SECURITY;
@@ -17979,6 +18407,10 @@ CREATE POLICY "users_view_own_wallet" ON "public"."user_wallets" FOR SELECT TO "
 
 
 
+CREATE POLICY "view_active_factory_products" ON "public"."factory_products" FOR SELECT USING ((("status" = 'active'::"text") AND ("is_deleted" = false)));
+
+
+
 CREATE POLICY "view_active_shop_products" ON "public"."shop_products" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."shops" "s"
   WHERE (("s"."id" = "shop_products"."shop_id") AND ("s"."status" = 'active'::"text")))));
@@ -18000,6 +18432,10 @@ CREATE POLICY "view_active_templates" ON "public"."shop_templates" FOR SELECT US
 CREATE POLICY "view_order_items" ON "public"."order_items" FOR SELECT TO "authenticated" USING (("order_id" IN ( SELECT "orders"."id"
    FROM "public"."orders"
   WHERE (("orders"."user_id" = "auth"."uid"()) OR ("orders"."seller_id" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "view_own_agreements" ON "public"."factory_seller_agreements" FOR SELECT USING ((("factory_id" = "auth"."uid"()) OR ("seller_id" = "auth"."uid"())));
 
 
 
@@ -20475,6 +20911,12 @@ GRANT ALL ON FUNCTION "public"."add_seller_to_conversation"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."approve_factory_connection"("p_connection_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."approve_factory_connection"("p_connection_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."approve_factory_connection"("p_connection_id" "uuid") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."archive_health_messages"() TO "anon";
 GRANT ALL ON FUNCTION "public"."archive_health_messages"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."archive_health_messages"() TO "service_role";
@@ -20655,6 +21097,12 @@ GRANT ALL ON FUNCTION "public"."create_digital_prescription"("p_appointment_id" 
 GRANT ALL ON FUNCTION "public"."create_direct_conversation"("p_target_user_id" "uuid", "p_context" "text", "p_product_id" "uuid", "p_appointment_id" "uuid", "p_listing_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."create_direct_conversation"("p_target_user_id" "uuid", "p_context" "text", "p_product_id" "uuid", "p_appointment_id" "uuid", "p_listing_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_direct_conversation"("p_target_user_id" "uuid", "p_context" "text", "p_product_id" "uuid", "p_appointment_id" "uuid", "p_listing_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."create_factory_seller_order"("p_buyer_id" "uuid", "p_seller_id" "uuid", "p_items" "jsonb", "p_total" numeric) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_factory_seller_order"("p_buyer_id" "uuid", "p_seller_id" "uuid", "p_items" "jsonb", "p_total" numeric) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_factory_seller_order"("p_buyer_id" "uuid", "p_seller_id" "uuid", "p_items" "jsonb", "p_total" numeric) TO "service_role";
 
 
 
@@ -21219,6 +21667,12 @@ GRANT ALL ON FUNCTION "public"."initialize_user_notification_settings"() TO "ser
 
 
 
+GRANT ALL ON FUNCTION "public"."insert_sales_fact"() TO "anon";
+GRANT ALL ON FUNCTION "public"."insert_sales_fact"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."insert_sales_fact"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."is_admin"("p_user_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."is_admin"("p_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_admin"("p_user_id" "uuid") TO "service_role";
@@ -21337,6 +21791,12 @@ GRANT ALL ON FUNCTION "public"."products_tsvector_trigger"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."reactivate_connection"("p_connection_id" "uuid", "p_reconnection_token" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."reactivate_connection"("p_connection_id" "uuid", "p_reconnection_token" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."reactivate_connection"("p_connection_id" "uuid", "p_reconnection_token" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."register_app_device"("p_token" "text", "p_platform" "text", "p_app_version" "text", "p_device_model" "text", "p_os_version" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."register_app_device"("p_token" "text", "p_platform" "text", "p_app_version" "text", "p_device_model" "text", "p_os_version" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_app_device"("p_token" "text", "p_platform" "text", "p_app_version" "text", "p_device_model" "text", "p_os_version" "text") TO "service_role";
@@ -21346,6 +21806,12 @@ GRANT ALL ON FUNCTION "public"."register_app_device"("p_token" "text", "p_platfo
 GRANT ALL ON FUNCTION "public"."register_push_subscription"("p_token" "text", "p_platform" "text", "p_app_version" "text", "p_device_model" "text", "p_os_version" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."register_push_subscription"("p_token" "text", "p_platform" "text", "p_app_version" "text", "p_device_model" "text", "p_os_version" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."register_push_subscription"("p_token" "text", "p_platform" "text", "p_app_version" "text", "p_device_model" "text", "p_os_version" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."request_factory_connection"("p_factory_id" "uuid", "p_seller_id" "uuid", "p_notes" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."request_factory_connection"("p_factory_id" "uuid", "p_seller_id" "uuid", "p_notes" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."request_factory_connection"("p_factory_id" "uuid", "p_seller_id" "uuid", "p_notes" "text") TO "service_role";
 
 
 
@@ -21759,6 +22225,12 @@ GRANT ALL ON FUNCTION "public"."update_sales_timestamp"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."update_seller_product_count"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_seller_product_count"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_seller_product_count"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_seller_sales_fact"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_seller_sales_fact"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_seller_sales_fact"() TO "service_role";
 
 
 
@@ -22187,18 +22659,6 @@ GRANT ALL ON TABLE "public"."factory_production_logs" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."products" TO "anon";
-GRANT ALL ON TABLE "public"."products" TO "authenticated";
-GRANT ALL ON TABLE "public"."products" TO "service_role";
-
-
-
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."sellers" TO "anon";
-GRANT ALL ON TABLE "public"."sellers" TO "authenticated";
-GRANT ALL ON TABLE "public"."sellers" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."factory_products" TO "anon";
 GRANT ALL ON TABLE "public"."factory_products" TO "authenticated";
 GRANT ALL ON TABLE "public"."factory_products" TO "service_role";
@@ -22220,6 +22680,12 @@ GRANT ALL ON TABLE "public"."factory_quotes" TO "service_role";
 GRANT ALL ON TABLE "public"."factory_ratings" TO "anon";
 GRANT ALL ON TABLE "public"."factory_ratings" TO "authenticated";
 GRANT ALL ON TABLE "public"."factory_ratings" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."factory_seller_agreements" TO "anon";
+GRANT ALL ON TABLE "public"."factory_seller_agreements" TO "authenticated";
+GRANT ALL ON TABLE "public"."factory_seller_agreements" TO "service_role";
 
 
 
@@ -22709,6 +23175,12 @@ GRANT ALL ON TABLE "public"."prescription_fulfillment" TO "service_role";
 
 
 
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."products" TO "anon";
+GRANT ALL ON TABLE "public"."products" TO "authenticated";
+GRANT ALL ON TABLE "public"."products" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."profiles" TO "anon";
 GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."profiles" TO "service_role";
@@ -22748,6 +23220,24 @@ GRANT ALL ON TABLE "public"."sales" TO "service_role";
 GRANT ALL ON TABLE "public"."seller_profiles" TO "anon";
 GRANT ALL ON TABLE "public"."seller_profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."seller_profiles" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."seller_sales_fact" TO "anon";
+GRANT ALL ON TABLE "public"."seller_sales_fact" TO "authenticated";
+GRANT ALL ON TABLE "public"."seller_sales_fact" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."seller_sales_mv" TO "anon";
+GRANT ALL ON TABLE "public"."seller_sales_mv" TO "authenticated";
+GRANT ALL ON TABLE "public"."seller_sales_mv" TO "service_role";
+
+
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."sellers" TO "anon";
+GRANT ALL ON TABLE "public"."sellers" TO "authenticated";
+GRANT ALL ON TABLE "public"."sellers" TO "service_role";
 
 
 

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:aurora/storage/storage.dart';
 import 'package:aurora/storage/userStorage.dart';
@@ -45,13 +44,9 @@ Future<void> main() async {
   final envVars = await _loadEnvVars();
   String supabaseUrl = envVars['SUPABASE_URL']!;
   String supabaseAnonKey = envVars['SUPABASE_ANON_KEY']!;
-  Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
   await Storage.init();
-
-  if (!kIsWeb) {
-    await _requestLocationPermission();
-  }
 
   final appSettings = AppSettingsProvider();
   await appSettings.init();
@@ -69,16 +64,20 @@ Future<void> main() async {
       child: const AuroraApp(),
     ),
   );
+
+  if (!kIsWeb) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestLocationPermission();
+    });
+  }
 }
 
 Future<void> _requestLocationPermission() async {
   try {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      await Geolocator.requestPermission();
     }
-    await Permission.location.request();
-    await Permission.locationAlways.request();
   } catch (e) {
     debugPrint('[main._requestLocationPermission] Error: $e');
   }
@@ -144,8 +143,6 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
 
     try {
-      await Storage.init();
-
       final supabase = Supabase.instance.client;
       final currentUser = supabase.auth.currentUser;
 

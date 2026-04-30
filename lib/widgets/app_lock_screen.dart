@@ -32,7 +32,6 @@ class _AppLockScreenState extends State<AppLockScreen> {
 
   Future<void> _checkLockState() async {
     final settings = Provider.of<AppSettingsProvider>(context, listen: false);
-    await settings.init();
 
     if (!settings.isSecurityEnabled) {
       settings.setUnlocked();

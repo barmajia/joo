@@ -136,8 +136,8 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
     if (_searchQuery.trim().isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       results = results.where((p) {
-        final title = p.title?.toLowerCase() ?? '';
-        final brand = p.brand?.toLowerCase() ?? '';
+        final title = p.title.toLowerCase();
+        final brand = p.brand.toLowerCase();
         final sku = p.sku?.toLowerCase() ?? '';
         return title.contains(query) ||
             brand.contains(query) ||
@@ -394,7 +394,6 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
   Widget _buildProductCard(Product product) {
     final imageUrl = _getImageUrl(product.mainImage);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
@@ -427,7 +426,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            product.title ?? 'Untitled',
+                            product.title,
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -447,7 +446,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            product.status?.toUpperCase() ?? 'N/A',
+                            product.status.toUpperCase(),
                             style: TextStyle(
                               color: _getStatusColor(product.status),
                               fontSize: 9,
@@ -458,9 +457,9 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    if (product.brand?.isNotEmpty == true)
+                    if (product.brand.isNotEmpty == true)
                       Text(
-                        product.brand!,
+                        product.brand,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.hintColor,
                           fontSize: 11,
@@ -472,10 +471,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
                     Row(
                       children: [
                         Text(
-                          _formatPrice(
-                            product.price,
-                            product.currency ?? 'USD',
-                          ),
+                          _formatPrice(product.price, product.currency),
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: theme.colorScheme.primary,
@@ -486,13 +482,13 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
                         Icon(
                           Icons.inventory_2_outlined,
                           size: 13,
-                          color: (product.quantity ?? 0) > 0
+                          color: (product.quantity) > 0
                               ? Colors.green
                               : Colors.red,
                         ),
                         const SizedBox(width: 3),
                         Text(
-                          '${product.quantity ?? 0}',
+                          '${product.quantity}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,

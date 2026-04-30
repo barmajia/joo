@@ -285,12 +285,12 @@ class _CustomerListPageState extends State<CustomerListPage> {
   void _addCustomer() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CustomerFormPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const CustomerFormPage()),
     ).then((result) {
       if (result != null) {
-        debugPrint('[CustomerList._addCustomer] Customer created: ${result.name}');
+        debugPrint(
+          '[CustomerList._addCustomer] Customer created: ${result.name}',
+        );
         _loadCustomers();
       }
     });
@@ -322,6 +322,58 @@ class _CustomerListPageState extends State<CustomerListPage> {
       );
       return;
     }
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Customer'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _customers.length,
+                  itemBuilder: (context, index) {
+                    final customer = _customers[index];
+                    return ListTile(
+                      leading: CircleAvatar(child: Text(customer.initials)),
+                      title: Text(customer.name),
+                      subtitle: Text(customer.phone),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                BillFormPage(customer: customer),
+                          ),
+                        ).then((result) {
+                          if (result == true) {
+                            _loadCustomers();
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.person_add, color: Colors.blue),
+                title: const Text('Create New Customer'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _addCustomer();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

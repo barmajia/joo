@@ -24,9 +24,7 @@ class CustomerService {
           .eq('seller_id', sellerId)
           .order('created_at', ascending: false);
 
-      final customers = response
-          .map((item) => Customer.fromMap(item as Map<String, dynamic>))
-          .toList();
+      final customers = response.map((item) => Customer.fromMap(item)).toList();
 
       final vault = await _getVault();
 
@@ -124,9 +122,7 @@ class CustomerService {
           .select()
           .maybeSingle();
 
-      final updated = response != null
-          ? Customer.fromMap(response)
-          : customer;
+      final updated = response != null ? Customer.fromMap(response) : customer;
 
       await CustomerStorage.updateCustomer(updated);
       final vault = await _getVault();

@@ -44,6 +44,7 @@ class Order {
   final String? codCollectedBy;
   final CodCollectionStatus codCollectionStatus;
   final DateTime? codDepositDeadline;
+  final DateTime? deletionDeadline;
   final List<OrderItem> items;
 
   Order({
@@ -89,6 +90,7 @@ class Order {
     this.codCollectedBy,
     this.codCollectionStatus = CodCollectionStatus.pending,
     this.codDepositDeadline,
+    this.deletionDeadline,
     this.items = const [],
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -99,6 +101,11 @@ class Order {
   bool get isShipped => status == OrderStatus.shipped;
   bool get isDelivered => status == OrderStatus.delivered;
   bool get isCancelled => status == OrderStatus.cancelled || status == OrderStatus.refunded;
+
+  bool get isDeletable {
+    if (deletionDeadline == null) return true;
+    return DateTime.now().isBefore(deletionDeadline!);
+  }
 
   bool get isCod => paymentMethod == PaymentMethod.cod;
   bool get needsCodVerification => isCod && codVerificationRequired && !codVerified;
@@ -190,6 +197,9 @@ class Order {
       codDepositDeadline: map['cod_deposit_deadline'] != null
           ? DateTime.tryParse(map['cod_deposit_deadline'].toString())
           : null,
+      deletionDeadline: map['deletion_deadline'] != null
+          ? DateTime.tryParse(map['deletion_deadline'].toString())
+          : null,
       items: map['items'] is List
           ? (map['items'] as List)
               .map((item) => OrderItem.fromMap(item as Map<String, dynamic>))
@@ -240,11 +250,12 @@ class Order {
       'cod_verified_at': codVerifiedAt?.toIso8601String(),
       'cod_collection_amount': codCollectionAmount,
       'cod_collected_by': codCollectedBy,
-      'cod_collection_status': codCollectionStatus.value,
-      'cod_deposit_deadline': codDepositDeadline?.toIso8601String(),
-      'items': items.map((item) => item.toMap()).toList(),
-    };
-  }
+       'cod_collection_status': codCollectionStatus.value,
+       'cod_deposit_deadline': codDepositDeadline?.toIso8601String(),
+       'deletion_deadline': deletionDeadline?.toIso8601String(),
+       'items': items.map((item) => item.toMap()).toList(),
+     };
+   }
 
   Order copyWith({
     String? id,
@@ -334,6 +345,7 @@ class Order {
       codCollectedBy: codCollectedBy ?? this.codCollectedBy,
       codCollectionStatus: codCollectionStatus ?? this.codCollectionStatus,
       codDepositDeadline: codDepositDeadline ?? this.codDepositDeadline,
+      deletionDeadline: deletionDeadline ?? this.deletionDeadline,
       items: items ?? this.items,
     );
   }

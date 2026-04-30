@@ -13,7 +13,7 @@ class GoalsStorage {
 
     return goalsData
         .whereType<Map<String, dynamic>>()
-        .map((data) => SellerGoal.fromMap(data as Map<String, dynamic>))
+        .map((data) => SellerGoal.fromMap(data))
         .where((goal) => goal.sellerId == sellerId)
         .toList();
   }
@@ -74,7 +74,7 @@ class GoalsStorage {
 
     return achievementsData
         .whereType<Map<String, dynamic>>()
-        .map((data) => Achievement.fromMap(data as Map<String, dynamic>))
+        .map((data) => Achievement.fromMap(data))
         .where((achievement) => achievement.sellerId == sellerId)
         .toList();
   }

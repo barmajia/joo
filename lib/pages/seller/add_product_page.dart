@@ -65,7 +65,6 @@ class _AddProductPageState extends State<AddProductPage> {
   // === Backend & Storage ===
   final _supabase = Supabase.instance.client;
   ProductVaultStorage? _productVault;
-  ProductSecretsStorage? _secretsStorage;
 
   bool _isSaving = false;
   bool _isInitializing = true;
@@ -130,7 +129,6 @@ class _AddProductPageState extends State<AddProductPage> {
     try {
       // Initialize storage vaults
       _productVault = await ProductVaultStorage.getInstance();
-      _secretsStorage = await ProductSecretsStorage.getInstance();
 
       // Load user currency preference
       await _loadUserCurrency();
@@ -193,7 +191,7 @@ class _AddProductPageState extends State<AddProductPage> {
     _asinController.text = p.asin ?? '';
 
     // Status & condition
-    if (p.status != null) {
+    if (p.status.isEmpty) {
       _status = ProductStatus.values.firstWhere(
         (s) => s.name == p.status,
         orElse: () => ProductStatus.draft,
@@ -223,7 +221,7 @@ class _AddProductPageState extends State<AddProductPage> {
     }
 
     // Brand
-    if (p.brand?.isNotEmpty == true) {
+    if (p.brand.isNotEmpty == true) {
       final catName = getCategoryDefinitionById(
         _selectedCategoryId ?? '',
       )?.name;
@@ -232,7 +230,7 @@ class _AddProductPageState extends State<AddProductPage> {
             b.name == p.brand && (b.category == null || b.category == catName),
         orElse: () {
           // Local brand fallback
-          _customBrandController.text = p.brand!;
+          _customBrandController.text = p.brand;
           return BrandOption.localBrand;
         },
       );
@@ -644,7 +642,7 @@ class _AddProductPageState extends State<AddProductPage> {
 
   Widget _buildCategoryDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedCategoryId,
+      initialValue: _selectedCategoryId,
       decoration: const InputDecoration(
         labelText: 'Category *',
         border: OutlineInputBorder(),
@@ -677,7 +675,7 @@ class _AddProductPageState extends State<AddProductPage> {
         : getSubcategoriesForCategory(_selectedCategoryId!);
 
     return DropdownButtonFormField<String>(
-      value: _selectedSubcategory,
+      initialValue: _selectedSubcategory,
       decoration: const InputDecoration(
         labelText: 'Subcategory *',
         border: OutlineInputBorder(),
@@ -718,7 +716,7 @@ class _AddProductPageState extends State<AddProductPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<BrandOption>(
-          value: _selectedBrand?.isLocal == true
+          initialValue: _selectedBrand?.isLocal == true
               ? BrandOption.localBrand
               : _selectedBrand,
           decoration: const InputDecoration(
@@ -766,7 +764,7 @@ class _AddProductPageState extends State<AddProductPage> {
     if (catDef?.requiresColor != true) return const SizedBox();
 
     return DropdownButtonFormField<ColorOption>(
-      value: _selectedColor,
+      initialValue: _selectedColor,
       decoration: const InputDecoration(
         labelText: 'Color',
         border: OutlineInputBorder(),
@@ -805,7 +803,7 @@ class _AddProductPageState extends State<AddProductPage> {
     if (catDef?.requiresCondition != true) return const SizedBox();
 
     return DropdownButtonFormField<ProductCondition>(
-      value: _condition,
+      initialValue: _condition,
       decoration: const InputDecoration(
         labelText: 'Condition',
         border: OutlineInputBorder(),
@@ -829,7 +827,7 @@ class _AddProductPageState extends State<AddProductPage> {
 
   Widget _buildStatusSelector() {
     return DropdownButtonFormField<ProductStatus>(
-      value: _status,
+      initialValue: _status,
       decoration: const InputDecoration(
         labelText: 'Listing Status',
         border: OutlineInputBorder(),
@@ -906,7 +904,7 @@ class _AddProductPageState extends State<AddProductPage> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: DropdownButtonFormField<String>(
-            value: _attributes[attr.key] as String?,
+            initialValue: _attributes[attr.key] as String?,
             decoration: InputDecoration(
               labelText: '${attr.label}${attr.required ? ' *' : ''}',
               hintText: attr.hint,
@@ -1211,7 +1209,11 @@ class _AddProductPageState extends State<AddProductPage> {
         width: 100,
         height: 100,
         decoration: BoxDecoration(
-          border: Border.all(color: theme.primaryColor, width: 2, style: BorderStyle.solid),
+          border: Border.all(
+            color: theme.primaryColor,
+            width: 2,
+            style: BorderStyle.solid,
+          ),
           borderRadius: BorderRadius.circular(8),
           color: theme.colorScheme.primaryContainer.withOpacity(0.3),
         ),

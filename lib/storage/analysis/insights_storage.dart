@@ -10,7 +10,7 @@ class InsightsStorage {
 
     return insightsData
         .whereType<Map<String, dynamic>>()
-        .map((data) => ActionableInsight.fromMap(data as Map<String, dynamic>))
+        .map((data) => ActionableInsight.fromMap(data))
         .where((insight) => insight.sellerId == sellerId)
         .toList();
   }
@@ -30,12 +30,12 @@ class InsightsStorage {
 
   static Future<void> saveInsight(ActionableInsight insight) async {
     final insightsData = await Storage.getData<List>(_insightsKey) ?? [];
-    
+
     // Remove existing insight with same ID
-    insightsData.removeWhere((item) => 
-      item is Map<String, dynamic> && item['id'] == insight.id
+    insightsData.removeWhere(
+      (item) => item is Map<String, dynamic> && item['id'] == insight.id,
     );
-    
+
     insightsData.add(insight.toMap());
     await Storage.saveData(_insightsKey, insightsData);
   }
@@ -58,8 +58,8 @@ class InsightsStorage {
 
   static Future<void> deleteInsight(String insightId) async {
     final insightsData = await Storage.getData<List>(_insightsKey) ?? [];
-    insightsData.removeWhere((item) => 
-      item is Map<String, dynamic> && item['id'] == insightId
+    insightsData.removeWhere(
+      (item) => item is Map<String, dynamic> && item['id'] == insightId,
     );
     await Storage.saveData(_insightsKey, insightsData);
   }
@@ -67,22 +67,24 @@ class InsightsStorage {
   static Future<void> clearExpiredInsights() async {
     final insightsData = await Storage.getData<List>(_insightsKey) ?? [];
     final now = DateTime.now();
-    
+
     insightsData.removeWhere((item) {
       if (item is! Map<String, dynamic>) return false;
       final expiresAtStr = item['expires_at'] as String?;
       if (expiresAtStr == null) return false;
-      
+
       final expiresAt = DateTime.tryParse(expiresAtStr);
       return expiresAt != null && now.isAfter(expiresAt);
     });
-    
+
     await Storage.saveData(_insightsKey, insightsData);
   }
 
   static Future<int> getUnreadCount(String sellerId) async {
     final insights = await getInsights(sellerId);
-    return insights.where((i) => !i.isRead && !i.isDismissed && !i.isExpired).length;
+    return insights
+        .where((i) => !i.isRead && !i.isDismissed && !i.isExpired)
+        .length;
   }
 
   static Future<void> clearAll() async {

@@ -4,9 +4,27 @@ import 'package:uuid/uuid.dart';
 import 'package:aurora/models/customers/customermodel.dart';
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/enums.dart';
+import 'package:aurora/models/product/productModel.dart';
 import 'package:aurora/services/order_service.dart';
 import 'package:aurora/services/customer_service.dart';
+import 'package:aurora/services/product_service.dart';
 import 'package:aurora/storage/userStorage.dart';
+
+class _BillLineItem {
+  final String id;
+  final Product product;
+  int quantity;
+  final double unitPrice;
+
+  _BillLineItem({
+    required this.id,
+    required this.product,
+    required this.quantity,
+    required this.unitPrice,
+  });
+
+  double get totalPrice => quantity * unitPrice;
+}
 
 class BillFormPage extends StatefulWidget {
   final Customer? customer;
@@ -19,7 +37,6 @@ class BillFormPage extends StatefulWidget {
 
 class _BillFormPageState extends State<BillFormPage> {
   final _formKey = GlobalKey<FormState>();
-  final _subtotalController = TextEditingController();
   final _discountController = TextEditingController(text: '0');
   final _taxController = TextEditingController(text: '0');
   final _shippingController = TextEditingController(text: '0');
@@ -28,34 +45,43 @@ class _BillFormPageState extends State<BillFormPage> {
   PaymentMethod _paymentMethod = PaymentMethod.cash;
   final OrderService _orderService = OrderService();
   final CustomerService _customerService = CustomerService();
+  final ProductService _productService = ProductService();
   bool _isSaving = false;
+  bool _isLoadingProducts = true;
   Customer? _selectedCustomer;
   List<Customer> _availableCustomers = [];
-  final List<OrderItem> _items = [];
+  List<Product> _availableProducts = [];
+  final List<_BillLineItem> _lineItems = [];
+  String _productSearch = '';
 
   @override
   void initState() {
     super.initState();
     _selectedCustomer = widget.customer;
-    _loadCustomers();
+    _loadData();
   }
 
-  Future<void> _loadCustomers() async {
+  Future<void> _loadData() async {
     try {
       final userStorage = Provider.of<UserStorage>(context, listen: false);
       final sellerId = userStorage.currentUser?.id;
       if (sellerId != null) {
         final customers = await _customerService.fetchCustomers(sellerId);
-        setState(() => _availableCustomers = customers);
+        final products = await _productService.getSellerProducts(sellerId);
+        setState(() {
+          _availableCustomers = customers;
+          _availableProducts = products.where((p) => p.isInStock && !p.isDeleted).toList();
+          _isLoadingProducts = false;
+        });
       }
     } catch (e) {
-      debugPrint('[BillFormPage._loadCustomers] Error: $e');
+      debugPrint('[BillFormPage._loadData] Error: $e');
+      setState(() => _isLoadingProducts = false);
     }
   }
 
   @override
   void dispose() {
-    _subtotalController.dispose();
     _discountController.dispose();
     _taxController.dispose();
     _shippingController.dispose();
@@ -64,42 +90,76 @@ class _BillFormPageState extends State<BillFormPage> {
   }
 
   double get _subtotal {
-    return _items.isEmpty
-        ? (double.tryParse(_subtotalController.text) ?? 0)
-        : _items.fold(0.0, (sum, item) => sum + item.totalPrice);
+    return _lineItems.fold(0.0, (sum, item) => sum + item.totalPrice);
   }
 
   double get _total {
-    final subtotal = _subtotal;
     final discount = double.tryParse(_discountController.text) ?? 0;
     final tax = double.tryParse(_taxController.text) ?? 0;
     final shipping = double.tryParse(_shippingController.text) ?? 0;
-    return subtotal - discount + tax + shipping;
+    return _subtotal - discount + tax + shipping;
   }
 
-  void _addItem() {
-    showDialog(
-      context: context,
-      builder: (context) => _AddItemDialog(
-        onAdd: (name, quantity, price) {
-          setState(() {
-            _items.add(OrderItem(
-              id: const Uuid().v4(),
-              orderId: '',
-              asin: '',
-              productName: name,
-              quantity: quantity,
-              unitPrice: price,
-              totalPrice: quantity * price,
-            ));
-          });
-        },
-      ),
-    );
+  Future<void> _selectProduct(Product product) async {
+    final existingIndex = _lineItems.indexWhere((item) => item.product.id == product.id);
+    if (existingIndex != -1) {
+      final existing = _lineItems[existingIndex];
+      final maxQty = product.quantity - existing.quantity;
+      if (maxQty <= 0) return;
+
+      final result = await showDialog<int>(
+        context: context,
+        builder: (context) => _QuantityDialog(
+          maxQuantity: maxQty,
+          currentQuantity: existing.quantity,
+        ),
+      );
+
+      if (result != null && result > 0) {
+        setState(() {
+          _lineItems[existingIndex] = _BillLineItem(
+            id: existing.id,
+            product: product,
+            quantity: result,
+            unitPrice: existing.unitPrice,
+          );
+        });
+      }
+    } else {
+      final result = await showDialog<int>(
+        context: context,
+        builder: (context) => _QuantityDialog(
+          maxQuantity: product.quantity,
+          currentQuantity: 1,
+        ),
+      );
+
+      if (result != null && result > 0) {
+        setState(() {
+          _lineItems.add(_BillLineItem(
+            id: const Uuid().v4(),
+            product: product,
+            quantity: result,
+            unitPrice: product.price ?? 0,
+          ));
+        });
+      }
+    }
   }
 
   void _removeItem(int index) {
-    setState(() => _items.removeAt(index));
+    setState(() => _lineItems.removeAt(index));
+  }
+
+  void _showProductPicker() {
+    showDialog(
+      context: context,
+      builder: (context) => _ProductPickerDialog(
+        products: _availableProducts,
+        selectedIds: _lineItems.map((item) => item.product.id).toSet(),
+        onSelect: _selectProduct,
+      ),
+    );
   }
 
   Future<void> _saveBill() async {
@@ -110,11 +170,30 @@ class _BillFormPageState extends State<BillFormPage> {
       );
       return;
     }
+    if (_lineItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one item')),
+      );
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
       final userStorage = Provider.of<UserStorage>(context, listen: false);
       final sellerId = userStorage.currentUser?.id ?? '';
+
+      final orderItems = _lineItems.map((item) {
+        return OrderItem(
+          id: const Uuid().v4(),
+          orderId: '',
+          asin: item.product.asin ?? '',
+          productId: item.product.id,
+          productName: item.product.title,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+        );
+      }).toList();
 
       final order = Order(
         id: const Uuid().v4(),
@@ -127,14 +206,26 @@ class _BillFormPageState extends State<BillFormPage> {
         total: _total,
         paymentMethod: _paymentMethod,
         notes: _notesController.text.isNotEmpty ? _notesController.text : null,
-        items: _items,
+        items: orderItems,
       );
 
       final created = await _orderService.createOrder(order);
       if (created == null) throw Exception('Failed to create order');
 
+      for (final item in _lineItems) {
+        try {
+          await _productService.deductQuantity(
+            item.product.id!,
+            item.quantity,
+            sellerId,
+          );
+        } catch (e) {
+          debugPrint('[BillForm._saveBill] Failed to deduct ${item.product.title}: $e');
+        }
+      }
+
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Bill created successfully'), backgroundColor: Colors.green),
         );
@@ -153,6 +244,12 @@ class _BillFormPageState extends State<BillFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingProducts) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.customer != null ? 'Create Bill' : 'New Bill'),
@@ -171,9 +268,9 @@ class _BillFormPageState extends State<BillFormPage> {
                 _buildCustomerCard(),
                 const SizedBox(height: 16),
               ],
-              const Text('Items', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text('Products', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              if (_items.isEmpty)
+              if (_lineItems.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -181,25 +278,42 @@ class _BillFormPageState extends State<BillFormPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
-                    child: TextButton.icon(
-                      onPressed: _addItem,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Item'),
-                    ),
+                    child: _availableProducts.isEmpty
+                        ? Column(
+                            children: [
+                              const Icon(Icons.inventory_2_outlined, size: 40, color: Colors.grey),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No products in stock',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                            ],
+                          )
+                        : TextButton.icon(
+                            onPressed: _showProductPicker,
+                            icon: const Icon(Icons.add_shopping_cart),
+                            label: const Text('Select Product'),
+                          ),
                   ),
                 )
               else ...[
                 ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _items.length,
+                  itemCount: _lineItems.length,
                   itemBuilder: (context, index) {
-                    final item = _items[index];
+                    final item = _lineItems[index];
                     return Card(
                       margin: const EdgeInsets.only(bottom: 4),
                       child: ListTile(
-                        title: Text(item.productName),
-                        subtitle: Text('${item.quantity} x EGP ${item.unitPrice.toStringAsFixed(2)}'),
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                          child: const Icon(Icons.inventory_2, size: 20),
+                        ),
+                        title: Text(item.product.title),
+                        subtitle: Text(
+                          '${item.quantity} x EGP ${item.unitPrice.toStringAsFixed(2)} • Stock: ${item.product.quantity}',
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -217,14 +331,23 @@ class _BillFormPageState extends State<BillFormPage> {
                     );
                   },
                 ),
-                TextButton.icon(
-                  onPressed: _addItem,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Another Item'),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _showProductPicker,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Product'),
+                    ),
+                    Text(
+                      '${_lineItems.length} item(s)',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: 16),
-              if (_items.isNotEmpty) ...[
+              if (_lineItems.isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -244,23 +367,6 @@ class _BillFormPageState extends State<BillFormPage> {
                 ),
                 const SizedBox(height: 16),
               ],
-              TextFormField(
-                controller: _items.isEmpty ? _subtotalController : null,
-                decoration: const InputDecoration(
-                  labelText: 'Subtotal *',
-                  border: OutlineInputBorder(),
-                  prefixText: 'EGP ',
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (_) => setState(() {}),
-                validator: _items.isEmpty
-                    ? (value) => value == null || value.isEmpty
-                        ? 'Subtotal is required'
-                        : null
-                    : null,
-                enabled: _items.isEmpty,
-              ),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _discountController,
                 decoration: const InputDecoration(
@@ -349,7 +455,7 @@ class _BillFormPageState extends State<BillFormPage> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveBill,
+                  onPressed: _isSaving || _lineItems.isEmpty ? null : _saveBill,
                   child: _isSaving
                       ? const SizedBox(
                           height: 20,
@@ -423,50 +529,166 @@ class _BillFormPageState extends State<BillFormPage> {
   }
 }
 
-class _AddItemDialog extends StatefulWidget {
-  final Function(String name, int quantity, double price) onAdd;
+class _ProductPickerDialog extends StatefulWidget {
+  final List<Product> products;
+  final Set<String?> selectedIds;
+  final Function(Product) onSelect;
 
-  const _AddItemDialog({required this.onAdd});
+  const _ProductPickerDialog({
+    required this.products,
+    required this.selectedIds,
+    required this.onSelect,
+  });
 
   @override
-  State<_AddItemDialog> createState() => _AddItemDialogState();
+  State<_ProductPickerDialog> createState() => _ProductPickerDialogState();
 }
 
-class _AddItemDialogState extends State<_AddItemDialog> {
-  final _nameController = TextEditingController();
-  final _quantityController = TextEditingController(text: '1');
-  final _priceController = TextEditingController();
+class _ProductPickerDialogState extends State<_ProductPickerDialog> {
+  String _searchQuery = '';
+
+  List<Product> get _filtered {
+    if (_searchQuery.isEmpty) return widget.products;
+    final query = _searchQuery.toLowerCase();
+    return widget.products.where((p) =>
+        p.title.toLowerCase().contains(query) ||
+        (p.sku?.toLowerCase().contains(query) ?? false) ||
+        (p.brand.toLowerCase().contains(query))).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Product'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              decoration: const InputDecoration(
+                hintText: 'Search products...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value.trim()),
+            ),
+            const SizedBox(height: 12),
+            if (_filtered.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('No products found'),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _filtered.length,
+                  itemBuilder: (context, index) {
+                    final product = _filtered[index];
+                    final isSelected = widget.selectedIds.contains(product.id);
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isSelected
+                            ? Colors.green.withValues(alpha: 0.2)
+                            : Colors.grey[200],
+                        child: Icon(
+                          isSelected ? Icons.check : Icons.inventory_2,
+                          color: isSelected ? Colors.green : Colors.grey[600],
+                        ),
+                      ),
+                      title: Text(product.title),
+                      subtitle: Text(
+                        'EGP ${product.price?.toStringAsFixed(2) ?? '0.00'} • ${product.quantity} in stock',
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        widget.onSelect(product);
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuantityDialog extends StatefulWidget {
+  final int maxQuantity;
+  final int currentQuantity;
+
+  const _QuantityDialog({
+    required this.maxQuantity,
+    required this.currentQuantity,
+  });
+
+  @override
+  State<_QuantityDialog> createState() => _QuantityDialogState();
+}
+
+class _QuantityDialogState extends State<_QuantityDialog> {
+  late int _quantity;
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _quantity = widget.currentQuantity;
+    _controller = TextEditingController(text: widget.currentQuantity.toString());
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _quantityController.dispose();
-    _priceController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add Item'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
+      title: Text('Quantity (max: ${widget.maxQuantity})'),
+      content: Row(
         children: [
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Product Name', border: OutlineInputBorder()),
+          IconButton(
+            icon: const Icon(Icons.remove),
+            onPressed: _quantity > 1
+                ? () => setState(() {
+                    _quantity--;
+                    _controller.text = _quantity.toString();
+                  })
+                : null,
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _quantityController,
-            decoration: const InputDecoration(labelText: 'Quantity', border: OutlineInputBorder()),
-            keyboardType: TextInputType.number,
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              onChanged: (value) {
+                final parsed = int.tryParse(value);
+                if (parsed != null && parsed > 0) {
+                  setState(() => _quantity = parsed.clamp(1, widget.maxQuantity));
+                }
+              },
+            ),
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _priceController,
-            decoration: const InputDecoration(labelText: 'Unit Price', border: OutlineInputBorder(), prefixText: 'EGP '),
-            keyboardType: TextInputType.number,
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _quantity < widget.maxQuantity
+                ? () => setState(() {
+                    _quantity++;
+                    _controller.text = _quantity.toString();
+                  })
+                : null,
           ),
         ],
       ),
@@ -476,15 +698,8 @@ class _AddItemDialogState extends State<_AddItemDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () {
-            final name = _nameController.text.trim();
-            final quantity = int.tryParse(_quantityController.text) ?? 1;
-            final price = double.tryParse(_priceController.text) ?? 0;
-            if (name.isEmpty || price <= 0) return;
-            widget.onAdd(name, quantity, price);
-            Navigator.pop(context);
-          },
-          child: const Text('Add'),
+          onPressed: () => Navigator.pop(context, _quantity),
+          child: const Text('Confirm'),
         ),
       ],
     );

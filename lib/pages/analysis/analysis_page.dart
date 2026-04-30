@@ -20,7 +20,8 @@ class AnalysisPage extends StatefulWidget {
   State<AnalysisPage> createState() => _AnalysisPageState();
 }
 
-class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderStateMixin {
+class _AnalysisPageState extends State<AnalysisPage>
+    with SingleTickerProviderStateMixin {
   final AnalysisEngine _analysisEngine = AnalysisEngine();
   final InsightsEngine _insightsEngine = InsightsEngine();
   AnalyticsSnapshot? _snapshot;
@@ -31,7 +32,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
   int _selectedTabIndex = 0;
   List<SellerGoal> _goals = [];
   bool _showGoalsTab = false;
-  
+
   late TabController _tabController;
 
   @override
@@ -60,7 +61,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
-      
+
       final goals = await GoalsStorage.getGoals(user.id);
       setState(() {
         _goals = goals;
@@ -72,19 +73,21 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
 
   Future<void> _generateInsights() async {
     if (_snapshot == null) return;
-    
+
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
-      
+
       await _insightsEngine.generateInsights(
         sellerId: user.id,
         snapshot: _snapshot!,
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.newInsightsGenerated)),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.newInsightsGenerated),
+          ),
         );
       }
     } catch (e) {
@@ -153,7 +156,9 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context)!.analysisComplete)),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.analysisComplete),
+          ),
         );
       }
     } catch (e) {
@@ -161,9 +166,9 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
       if (!mounted) return;
       setState(() => _isAnalyzing = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -213,11 +218,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildAnalyticsTab(),
-          _buildInsightsTab(),
-          _buildGoalsTab(),
-        ],
+        children: [_buildAnalyticsTab(), _buildInsightsTab(), _buildGoalsTab()],
       ),
     );
   }
@@ -286,9 +287,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
   Widget _buildInsightsTab() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
-      return Center(
-        child: Text(AppLocalizations.of(context)!.pleaseLogin),
-      );
+      return Center(child: Text(AppLocalizations.of(context)!.pleaseLogin));
     }
 
     return Padding(
@@ -332,10 +331,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
         children: [
           Text(
             AppLocalizations.of(context)!.yourGoals,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
@@ -402,9 +398,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
   void _showCreateGoalDialog() {
     showDialog(
       context: context,
-      builder: (context) => CreateGoalDialog(
-        onSave: _saveGoal,
-      ),
+      builder: (context) => CreateGoalDialog(onSave: _saveGoal),
     );
   }
 
@@ -412,12 +406,12 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
-      
+
       // Update seller ID
       final updatedGoal = goal.copyWith(sellerId: user.id);
       await GoalsStorage.saveGoal(updatedGoal);
       await _loadGoals();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context)!.goalCreated)),
@@ -426,9 +420,9 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
     } catch (e) {
       debugPrint('[AnalysisPage._saveGoal] Error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to create goal')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to create goal')));
       }
     }
   }
@@ -446,7 +440,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
-      
+
       final updatedGoal = newGoal.copyWith(
         id: oldGoal.id,
         sellerId: user.id,
@@ -454,7 +448,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
       );
       await GoalsStorage.saveGoal(updatedGoal);
       await _loadGoals();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(AppLocalizations.of(context)!.goalUpdated)),
@@ -470,7 +464,9 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppLocalizations.of(context)!.deleteGoal),
-        content: Text('${AppLocalizations.of(context)!.deleteGoalConfirm} "${goal.type.displayName}"?'),
+        content: Text(
+          '${AppLocalizations.of(context)!.deleteGoalConfirm} "${goal.type.displayName}"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -489,7 +485,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
       try {
         await GoalsStorage.deleteGoal(goal.id);
         await _loadGoals();
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(AppLocalizations.of(context)!.goalDeleted)),
@@ -521,13 +517,28 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
                 Text(goal.description!),
                 const SizedBox(height: 16),
               ],
-              _buildDetailRow(l10n.target, _formatGoalValue(goal.targetValue, goal.type)),
-              _buildDetailRow(l10n.current, _formatGoalValue(goal.currentValue, goal.type)),
-              _buildDetailRow(l10n.progress, '${goal.progressPercentage.toStringAsFixed(1)}%'),
-              _buildDetailRow(l10n.dailyNeed, _formatGoalValue(goal.dailyTargetNeeded, goal.type)),
+              _buildDetailRow(
+                l10n.target,
+                _formatGoalValue(goal.targetValue, goal.type),
+              ),
+              _buildDetailRow(
+                l10n.current,
+                _formatGoalValue(goal.currentValue, goal.type),
+              ),
+              _buildDetailRow(
+                l10n.progress,
+                '${goal.progressPercentage.toStringAsFixed(1)}%',
+              ),
+              _buildDetailRow(
+                l10n.dailyNeed,
+                _formatGoalValue(goal.dailyTargetNeeded, goal.type),
+              ),
               _buildDetailRow(l10n.startDate, _formatDate(goal.startDate)),
               _buildDetailRow(l10n.endDate, _formatDate(goal.endDate)),
-              _buildDetailRow('${goal.daysRemaining} ${l10n.daysRemaining}', ''),
+              _buildDetailRow(
+                '${goal.daysRemaining} ${l10n.daysRemaining}',
+                '',
+              ),
               if (goal.isAchieved) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -601,13 +612,16 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
   }
 
   Widget _buildPeriodSelector() {
-    final l10n = AppLocalizations.of(context)!;
+    final l10n = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Text('Period:', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Period:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButton<PeriodType>(
@@ -635,7 +649,8 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
 
   Widget _buildKPIs() {
     final l10n = AppLocalizations.of(context)!;
-    final kpis = _snapshot!.analyticsData['kpis'] as Map<String, dynamic>? ?? {};
+    final kpis =
+        _snapshot!.analyticsData['kpis'] as Map<String, dynamic>? ?? {};
 
     return Card(
       child: Padding(
@@ -722,10 +737,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
               color: color,
             ),
           ),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
     );
@@ -806,9 +818,7 @@ class _AnalysisPageState extends State<AnalysisPage> with SingleTickerProviderSt
             ...customers.take(5).map((customer) {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(
-                  child: Icon(Icons.person),
-                ),
+                leading: const CircleAvatar(child: Icon(Icons.person)),
                 title: Text('${l10n.customer} ${customer['customer_id']}'),
                 trailing: Text(
                   '${customer['order_count']} ${l10n.orders}',

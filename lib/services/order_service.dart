@@ -1,3 +1,4 @@
+import 'package:aurora/services/product_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/customers/customerbill.dart';
@@ -114,23 +115,56 @@ class OrderService {
           .select()
           .maybeSingle();
 
+      Order created;
       if (response != null) {
-        final created = Order.fromMap(response);
+        created = Order.fromMap(response);
 
         if (items.isNotEmpty) {
           await _insertOrderItems(created.id, items);
         }
-
-        await OrderStorage.addOrder(created);
-        final vault = await _getVault();
-        await vault.saveBill(created.id, created);
-        return created;
+      } else {
+        created = order;
       }
+
+      await OrderStorage.addOrder(created);
+      final vault = await _getVault();
+      await vault.saveBill(created.id, created);
+
+      // Update seller index
+      await vault.saveCustomerBills(created.userId, []);
+      final existingCustomerBills = vault.getCustomerBills(created.userId);
+      if (!existingCustomerBills.any((o) => o.id == created.id)) {
+        await vault.saveCustomerBills(created.userId, [
+          created,
+          ...existingCustomerBills,
+        ]);
+      }
+
+      return created;
     } catch (e) {
-      debugPrint('[OrderService.createOrder] Error: $e');
-      rethrow;
+      debugPrint(
+        '[OrderService.createOrder] Supabase Error: $e, saving locally',
+      );
+      // Offline-first: save to local storage even if Supabase fails
+      try {
+        await OrderStorage.addOrder(order);
+        final vault = await _getVault();
+        await vault.saveBill(order.id, order);
+
+        final existingCustomerBills = vault.getCustomerBills(order.userId);
+        if (!existingCustomerBills.any((o) => o.id == order.id)) {
+          await vault.saveCustomerBills(order.userId, [
+            order,
+            ...existingCustomerBills,
+          ]);
+        }
+
+        return order;
+      } catch (localError) {
+        debugPrint('[OrderService.createOrder] Local save error: $localError');
+        rethrow;
+      }
     }
-    return null;
   }
 
   Future<Order?> updateOrder(Order order) async {
@@ -170,20 +204,16 @@ class OrderService {
 
   Future<void> _insertOrderItems(String orderId, List<OrderItem> items) async {
     try {
-      final itemsData = items
-          .map((item) {
-            final map = item.toMap();
-            map['order_id'] = orderId;
-            if (map['id'] == null || map['id'].toString().isEmpty) {
-              map.remove('id');
-            }
-            return map;
-          })
-          .toList();
+      final itemsData = items.map((item) {
+        final map = item.toMap();
+        map['order_id'] = orderId;
+        if (map['id'] == null || map['id'].toString().isEmpty) {
+          map.remove('id');
+        }
+        return map;
+      }).toList();
 
-      await Supabase.instance.client
-          .from('order_items')
-          .insert(itemsData);
+      await Supabase.instance.client.from('order_items').insert(itemsData);
     } catch (e) {
       debugPrint('[OrderService._insertOrderItems] Error: $e');
       rethrow;
@@ -201,19 +231,81 @@ class OrderService {
     }
   }
 
-  Future<void> deleteOrder(String orderId) async {
+  Future<bool> deleteOrder(String orderId) async {
+    Order? order = await fetchOrderById(orderId);
+
+    if (order == null) {
+      debugPrint('[OrderService.deleteOrder] Order not found: $orderId');
+      return false;
+    }
+
+    if (!order.isDeletable) {
+      debugPrint(
+        '[OrderService.deleteOrder] Order $orderId is not deletable yet',
+      );
+      throw Exception('Cannot delete this bill before the deletion deadline');
+    }
+
+    // Restore product quantities before deleting
+    if (order.items.isNotEmpty) {
+      try {
+        final productService = ProductService();
+        for (final item in order.items) {
+          if (item.productId != null) {
+            try {
+              await productService.restoreQuantity(
+                item.productId!,
+                item.quantity,
+                order.sellerId ?? '',
+              );
+            } catch (e) {
+              debugPrint(
+                '[OrderService.deleteOrder] Failed to restore ${item.productName}: $e',
+              );
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('[OrderService.deleteOrder] Error restoring quantities: $e');
+      }
+    }
+
     try {
       await _deleteOrderItems(orderId);
-      await Supabase.instance.client
-          .from('orders')
-          .delete()
-          .eq('id', orderId);
+      await Supabase.instance.client.from('orders').delete().eq('id', orderId);
+
       await OrderStorage.deleteOrder(orderId);
       final vault = await _getVault();
       await vault.deleteBill(orderId);
+
+      // Remove from customer bills index
+      final customerBills = vault.getCustomerBills(order.userId);
+      customerBills.removeWhere((o) => o.id == orderId);
+      await vault.saveCustomerBills(order.userId, customerBills);
+
+      return true;
     } catch (e) {
-      debugPrint('[OrderService.deleteOrder] Error: $e');
-      rethrow;
+      debugPrint(
+        '[OrderService.deleteOrder] Supabase error, deleting locally: $e',
+      );
+
+      // Offline-first: delete locally even if Supabase fails
+      try {
+        await OrderStorage.deleteOrder(orderId);
+        final vault = await _getVault();
+        await vault.deleteBill(orderId);
+
+        final customerBills = vault.getCustomerBills(order.userId);
+        customerBills.removeWhere((o) => o.id == orderId);
+        await vault.saveCustomerBills(order.userId, customerBills);
+
+        return true;
+      } catch (localError) {
+        debugPrint(
+          '[OrderService.deleteOrder] Local delete error: $localError',
+        );
+        rethrow;
+      }
     }
   }
 
