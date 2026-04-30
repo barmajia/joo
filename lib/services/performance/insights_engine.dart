@@ -22,7 +22,9 @@ class InsightsEngine {
 
     // If no snapshot provided, try to get latest
     if (snapshot == null) {
-      debugPrint('[InsightsEngine] No snapshot provided, skipping insight generation');
+      debugPrint(
+        '[InsightsEngine] No snapshot provided, skipping insight generation',
+      );
       return insights;
     }
 
@@ -52,30 +54,34 @@ class InsightsEngine {
     DateTime now,
   ) {
     final insights = <ActionableInsight>[];
-    
+
     // Check top products for potential stock issues (simulated)
     final topProducts = snapshot.topProducts;
     for (final product in topProducts.take(3)) {
       final quantity = product['quantity'] as int? ?? 0;
       if (quantity > 0 && quantity < 10) {
-        insights.add(ActionableInsight(
-          id: 'inv_${product['product_id']}_${now.millisecondsSinceEpoch}',
-          sellerId: sellerId,
-          type: InsightType.warning,
-          priority: InsightPriority.high,
-          category: InsightCategory.inventory,
-          title: 'Low Stock Alert: ${product['title']}',
-          description: 'Product "${product['title']}" has sold $quantity units and may be running low. Current sales velocity suggests restocking soon.',
-          recommendedAction: 'Restock at least 20 units to maintain sales momentum and avoid stockouts.',
-          potentialImpact: (product['revenue'] as num?)?.toDouble() ?? 0,
-          impactMetric: 'potential_lost_revenue',
-          createdAt: now,
-          expiresAt: now.add(const Duration(days: 3)),
-          metadata: {
-            'product_id': product['product_id'],
-            'units_sold': quantity,
-          },
-        ));
+        insights.add(
+          ActionableInsight(
+            id: 'inv_${product['product_id']}_${now.millisecondsSinceEpoch}',
+            sellerId: sellerId,
+            type: InsightType.warning,
+            priority: InsightPriority.high,
+            category: InsightCategory.inventory,
+            title: 'Low Stock Alert: ${product['title']}',
+            description:
+                'Product "${product['title']}" has sold $quantity units and may be running low. Current sales velocity suggests restocking soon.',
+            recommendedAction:
+                'Restock at least 20 units to maintain sales momentum and avoid stockouts.',
+            potentialImpact: (product['revenue'] as num?)?.toDouble() ?? 0,
+            impactMetric: 'potential_lost_revenue',
+            createdAt: now,
+            expiresAt: now.add(const Duration(days: 3)),
+            metadata: {
+              'product_id': product['product_id'],
+              'units_sold': quantity,
+            },
+          ),
+        );
       }
     }
 
@@ -93,38 +99,46 @@ class InsightsEngine {
 
     // Revenue milestone celebration
     if (totalRevenue >= 1000) {
-      insights.add(ActionableInsight(
-        id: 'sales_milestone_${now.millisecondsSinceEpoch}',
-        sellerId: sellerId,
-        type: InsightType.trend,
-        priority: InsightPriority.medium,
-        category: InsightCategory.sales,
-        title: 'Revenue Milestone Achieved! 🎉',
-        description: 'Congratulations! You\'ve reached \$${totalRevenue.toStringAsFixed(0)} in revenue this period.',
-        recommendedAction: 'Consider reinvesting profits into marketing or expanding your product line.',
-        potentialImpact: totalRevenue * 0.2,
-        impactMetric: 'growth_potential',
-        createdAt: now,
-        metadata: {'revenue_amount': totalRevenue},
-      ));
+      insights.add(
+        ActionableInsight(
+          id: 'sales_milestone_${now.millisecondsSinceEpoch}',
+          sellerId: sellerId,
+          type: InsightType.trend,
+          priority: InsightPriority.medium,
+          category: InsightCategory.sales,
+          title: 'Revenue Milestone Achieved! 🎉',
+          description:
+              'Congratulations! You\'ve reached \$${totalRevenue.toStringAsFixed(0)} in revenue this period.',
+          recommendedAction:
+              'Consider reinvesting profits into marketing or expanding your product line.',
+          potentialImpact: totalRevenue * 0.2,
+          impactMetric: 'growth_potential',
+          createdAt: now,
+          metadata: {'revenue_amount': totalRevenue},
+        ),
+      );
     }
 
     // Order volume insight
     if (totalOrders >= 50) {
-      insights.add(ActionableInsight(
-        id: 'order_volume_${now.millisecondsSinceEpoch}',
-        sellerId: sellerId,
-        type: InsightType.opportunity,
-        priority: InsightPriority.medium,
-        category: InsightCategory.sales,
-        title: 'High Order Volume Detected',
-        description: 'You\'ve received $totalOrders orders this period. This is a great opportunity to optimize fulfillment.',
-        recommendedAction: 'Review your fulfillment process and consider batching shipments for efficiency.',
-        potentialImpact: totalOrders * 5.0,
-        impactMetric: 'cost_savings',
-        createdAt: now,
-        metadata: {'order_count': totalOrders},
-      ));
+      insights.add(
+        ActionableInsight(
+          id: 'order_volume_${now.millisecondsSinceEpoch}',
+          sellerId: sellerId,
+          type: InsightType.opportunity,
+          priority: InsightPriority.medium,
+          category: InsightCategory.sales,
+          title: 'High Order Volume Detected',
+          description:
+              'You\'ve received $totalOrders orders this period. This is a great opportunity to optimize fulfillment.',
+          recommendedAction:
+              'Review your fulfillment process and consider batching shipments for efficiency.',
+          potentialImpact: totalOrders * 5.0,
+          impactMetric: 'cost_savings',
+          createdAt: now,
+          metadata: {'order_count': totalOrders},
+        ),
+      );
     }
 
     return insights;
@@ -140,20 +154,27 @@ class InsightsEngine {
 
     // AOV optimization suggestion
     if (avgOrderValue > 0 && avgOrderValue < 50) {
-      insights.add(ActionableInsight(
-        id: 'pricing_aov_${now.millisecondsSinceEpoch}',
-        sellerId: sellerId,
-        type: InsightType.recommendation,
-        priority: InsightPriority.medium,
-        category: InsightCategory.pricing,
-        title: 'Increase Average Order Value',
-        description: 'Your average order value is \$${avgOrderValue.toStringAsFixed(2)}. Consider bundling products or offering free shipping thresholds to increase AOV.',
-        recommendedAction: 'Set up product bundles or offer free shipping on orders over \$${(avgOrderValue * 1.5).toStringAsFixed(0)}',
-        potentialImpact: avgOrderValue * 0.3 * snapshot.totalOrders,
-        impactMetric: 'additional_revenue',
-        createdAt: now,
-        metadata: {'current_aov': avgOrderValue, 'target_aov': avgOrderValue * 1.5},
-      ));
+      insights.add(
+        ActionableInsight(
+          id: 'pricing_aov_${now.millisecondsSinceEpoch}',
+          sellerId: sellerId,
+          type: InsightType.recommendation,
+          priority: InsightPriority.medium,
+          category: InsightCategory.pricing,
+          title: 'Increase Average Order Value',
+          description:
+              'Your average order value is \$${avgOrderValue.toStringAsFixed(2)}. Consider bundling products or offering free shipping thresholds to increase AOV.',
+          recommendedAction:
+              'Set up product bundles or offer free shipping on orders over \$${(avgOrderValue * 1.5).toStringAsFixed(0)}',
+          potentialImpact: avgOrderValue * 0.3 * snapshot.totalOrders,
+          impactMetric: 'additional_revenue',
+          createdAt: now,
+          metadata: {
+            'current_aov': avgOrderValue,
+            'target_aov': avgOrderValue * 1.5,
+          },
+        ),
+      );
     }
 
     return insights;
@@ -170,39 +191,55 @@ class InsightsEngine {
 
     // Customer retention opportunity
     if (totalCustomers >= 10) {
-      final repeatCustomers = topCustomers.where((c) => (c['order_count'] as int) > 1).length;
+      final repeatCustomers = topCustomers
+          .where((c) => (c['order_count'] as int) > 1)
+          .length;
       final retentionRate = (repeatCustomers / totalCustomers) * 100;
 
       if (retentionRate < 30) {
-        insights.add(ActionableInsight(
-          id: 'customer_retention_${now.millisecondsSinceEpoch}',
-          sellerId: sellerId,
-          type: InsightType.warning,
-          priority: InsightPriority.high,
-          category: InsightCategory.customer,
-          title: 'Improve Customer Retention',
-          description: 'Only ${retentionRate.toStringAsFixed(1)}% of customers are making repeat purchases. Focus on building customer loyalty.',
-          recommendedAction: 'Implement a loyalty program, send personalized follow-up emails, or offer exclusive discounts to repeat customers.',
-          potentialImpact: totalCustomers * 25.0,
-          impactMetric: 'lifetime_value_increase',
-          createdAt: now,
-          metadata: {'retention_rate': retentionRate, 'repeat_customers': repeatCustomers},
-        ));
+        insights.add(
+          ActionableInsight(
+            id: 'customer_retention_${now.millisecondsSinceEpoch}',
+            sellerId: sellerId,
+            type: InsightType.warning,
+            priority: InsightPriority.high,
+            category: InsightCategory.customer,
+            title: 'Improve Customer Retention',
+            description:
+                'Only ${retentionRate.toStringAsFixed(1)}% of customers are making repeat purchases. Focus on building customer loyalty.',
+            recommendedAction:
+                'Implement a loyalty program, send personalized follow-up emails, or offer exclusive discounts to repeat customers.',
+            potentialImpact: totalCustomers * 25.0,
+            impactMetric: 'lifetime_value_increase',
+            createdAt: now,
+            metadata: {
+              'retention_rate': retentionRate,
+              'repeat_customers': repeatCustomers,
+            },
+          ),
+        );
       } else {
-        insights.add(ActionableInsight(
-          id: 'customer_loyalty_${now.millisecondsSinceEpoch}',
-          sellerId: sellerId,
-          type: InsightType.trend,
-          priority: InsightPriority.low,
-          category: InsightCategory.customer,
-          title: 'Strong Customer Loyalty',
-          description: 'Great job! ${retentionRate.toStringAsFixed(1)}% of your customers are returning buyers.',
-          recommendedAction: 'Continue engaging with your loyal customers and consider launching a VIP rewards program.',
-          potentialImpact: totalCustomers * 15.0,
-          impactMetric: 'retained_revenue',
-          createdAt: now,
-          metadata: {'retention_rate': retentionRate, 'repeat_customers': repeatCustomers},
-        ));
+        insights.add(
+          ActionableInsight(
+            id: 'customer_loyalty_${now.millisecondsSinceEpoch}',
+            sellerId: sellerId,
+            type: InsightType.trend,
+            priority: InsightPriority.low,
+            category: InsightCategory.customer,
+            title: 'Strong Customer Loyalty',
+            description:
+                'Great job! ${retentionRate.toStringAsFixed(1)}% of your customers are returning buyers.',
+            recommendedAction:
+                'Continue engaging with your loyal customers and consider launching a VIP rewards program.',
+            potentialImpact: totalCustomers * 15.0,
+            impactMetric: 'retained_revenue',
+            createdAt: now,
+            metadata: {
+              'retention_rate': retentionRate,
+              'repeat_customers': repeatCustomers,
+            },
+          ),
+        );
       }
     }
 
@@ -210,9 +247,12 @@ class InsightsEngine {
   }
 
   /// Check and update goals progress
-  Future<void> updateGoalsProgress(String sellerId, AnalyticsSnapshot snapshot) async {
+  Future<void> updateGoalsProgress(
+    String sellerId,
+    AnalyticsSnapshot snapshot,
+  ) async {
     final goals = await GoalsStorage.getGoals(sellerId);
-    
+
     for (final goal in goals) {
       if (goal.status == GoalStatus.active) {
         double currentValue = 0;
@@ -249,49 +289,60 @@ class InsightsEngine {
     }
   }
 
-  Future<void> _checkAndAwardAchievements(String sellerId, SellerGoal achievedGoal) async {
+  Future<void> _checkAndAwardAchievements(
+    String sellerId,
+    SellerGoal achievedGoal,
+  ) async {
     final now = DateTime.now();
-    
+
     // First sale achievement
     if (achievedGoal.type == GoalType.orders && achievedGoal.targetValue >= 1) {
-      await GoalsStorage.awardAchievement(Achievement(
-        id: 'first_sale',
-        sellerId: sellerId,
-        title: 'First Sale',
-        description: 'Congratulations on your first sale!',
-        badgeIcon: '🎉',
-        category: 'milestone',
-        points: 10,
-        earnedAt: now,
-      ));
+      await GoalsStorage.awardAchievement(
+        Achievement(
+          id: 'first_sale',
+          sellerId: sellerId,
+          title: 'First Sale',
+          description: 'Congratulations on your first sale!',
+          badgeIcon: '🎉',
+          category: 'milestone',
+          points: 10,
+          earnedAt: now,
+        ),
+      );
     }
 
     // Century Club achievement
-    if (achievedGoal.type == GoalType.orders && achievedGoal.targetValue >= 100) {
-      await GoalsStorage.awardAchievement(Achievement(
-        id: 'hundred_sales',
-        sellerId: sellerId,
-        title: 'Century Club',
-        description: 'Reached 100 sales',
-        badgeIcon: '💯',
-        category: 'milestone',
-        points: 50,
-        earnedAt: now,
-      ));
+    if (achievedGoal.type == GoalType.orders &&
+        achievedGoal.targetValue >= 100) {
+      await GoalsStorage.awardAchievement(
+        Achievement(
+          id: 'hundred_sales',
+          sellerId: sellerId,
+          title: 'Century Club',
+          description: 'Reached 100 sales',
+          badgeIcon: '💯',
+          category: 'milestone',
+          points: 50,
+          earnedAt: now,
+        ),
+      );
     }
 
     // Revenue King achievement
-    if (achievedGoal.type == GoalType.revenue && achievedGoal.targetValue >= 10000) {
-      await GoalsStorage.awardAchievement(Achievement(
-        id: 'revenue_king',
-        sellerId: sellerId,
-        title: 'Revenue King',
-        description: 'Earned \$10,000 in total revenue',
-        badgeIcon: '👑',
-        category: 'revenue',
-        points: 150,
-        earnedAt: now,
-      ));
+    if (achievedGoal.type == GoalType.revenue &&
+        achievedGoal.targetValue >= 10000) {
+      await GoalsStorage.awardAchievement(
+        Achievement(
+          id: 'revenue_king',
+          sellerId: sellerId,
+          title: 'Revenue King',
+          description: 'Earned \$10,000 in total revenue',
+          badgeIcon: '👑',
+          category: 'revenue',
+          points: 150,
+          earnedAt: now,
+        ),
+      );
     }
   }
 

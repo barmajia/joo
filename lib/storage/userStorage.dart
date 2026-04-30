@@ -6,16 +6,26 @@ import 'package:aurora/storage/storage.dart';
 
 class UserStorage extends ChangeNotifier {
   Users? _currentUser;
+  AccountType? _accountType;
   bool _isLoading = false;
   String? _error;
 
   Users? get currentUser => _currentUser;
+  AccountType? get accountType => _accountType;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isLoggedIn => _currentUser != null && _currentUser!.id.isNotEmpty;
+  bool get isSeller => _accountType == AccountType.seller;
+  bool get isFactory => _accountType == AccountType.factory;
+
+  Future<void> setAccountType(AccountType type) async {
+    _accountType = type;
+    notifyListeners();
+  }
 
   Future<void> loadUser(AccountType accountType) async {
     _isLoading = true;
+    _accountType = accountType;
     _error = null;
     notifyListeners();
 
@@ -238,6 +248,7 @@ class UserStorage extends ChangeNotifier {
 
   Future<void> logout() async {
     _currentUser = Users.zero();
+    _accountType = null;
     await Storage.clearUser();
     notifyListeners();
   }

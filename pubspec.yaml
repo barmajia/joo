@@ -27,6 +27,7 @@ dependencies:
   # Location & permissions
   geolocator: ^14.0.2
   permission_handler: ^12.0.1
+  local_auth: ^2.3.0
 
   # Custom / third‑party
   debug_print: ^0.0.1+1 # updated from 0.0.1+1 – latest is 1.0.0
