@@ -27,7 +27,7 @@ class SellerGoal {
     this.metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
+  }) : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
   double get progressPercentage {
@@ -44,7 +44,10 @@ class SellerGoal {
   }
 
   int get daysElapsed {
-    return DateTime.now().difference(startDate).inDays.clamp(0, endDate.difference(startDate).inDays);
+    return DateTime.now()
+        .difference(startDate)
+        .inDays
+        .clamp(0, endDate.difference(startDate).inDays);
   }
 
   double get dailyTargetNeeded {
