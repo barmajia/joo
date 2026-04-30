@@ -13,7 +13,8 @@ class FixidDrawer extends StatefulWidget {
 }
 
 class _FixidDrawerState extends State<FixidDrawer> {
-  bool _isSeller = false;
+  static bool _isSeller =
+      Storage.getAccountType() == AccountType.seller.toString();
 
   @override
   void initState() {
@@ -32,7 +33,7 @@ class _FixidDrawerState extends State<FixidDrawer> {
   }
 
   String _getAccountTypeName(AccountType? accountType) {
-    if (accountType == null) return 'Unknown';
+    if (accountType == null) return 'customer';
     switch (accountType) {
       case AccountType.seller:
         return 'Seller';
@@ -94,10 +95,7 @@ class _FixidDrawerState extends State<FixidDrawer> {
                     if (user?.id.isNotEmpty == true) ...[
                       Text(
                         'UUID',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                        ),
+                        style: TextStyle(color: Colors.white70, fontSize: 10),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -225,11 +223,7 @@ class _FixidDrawerState extends State<FixidDrawer> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(
-                  Icons.logout,
-                  color: Colors.red[400],
-                  size: 20,
-                ),
+                Icon(Icons.logout, color: Colors.red[400], size: 20),
                 const SizedBox(width: 12),
                 Text(
                   'Logout',
@@ -256,10 +250,7 @@ class _FixidDrawerState extends State<FixidDrawer> {
       margin: const EdgeInsets.only(bottom: 4),
       child: ListTile(
         leading: Icon(icon, size: 22),
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 15),
-        ),
+        title: Text(title, style: const TextStyle(fontSize: 15)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         onTap: onTap,
       ),
