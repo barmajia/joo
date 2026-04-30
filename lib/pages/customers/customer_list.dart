@@ -326,50 +326,6 @@ class _CustomerListPageState extends State<CustomerListPage> {
   }
 }
 
-class _CustomerCard extends StatelessWidget {
-  final Customer customer;
-  final VoidCallback onTap;
-
-  const _CustomerCard({required this.customer, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).primaryColor,
-          child: Text(
-            customer.initials,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
-        ),
-        title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(customer.phone.isNotEmpty ? customer.phone : customer.email ?? ''),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '${customer.totalOrders} orders',
-              style: const TextStyle(fontSize: 12),
-            ),
-            Text(
-              'EGP ${customer.totalSpent.toStringAsFixed(0)}',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CustomerGridTile extends StatelessWidget {
   final Customer customer;
   final VoidCallback onTap;

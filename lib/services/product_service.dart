@@ -44,23 +44,34 @@ class ProductService {
           .eq('is_active', true)
           .order('created_at', ascending: false);
 
-      return (response as List).map((json) => ProductDeal.fromJson(json)).toList();
+      return (response as List)
+          .map((json) => ProductDeal.fromJson(json))
+          .toList();
     } catch (e) {
       throw Exception('Failed to load product deals: $e');
     }
   }
 
-  Future<List<ProductSecret>> getProductSecrets(String productId) async {
-    try {
-      final response = await _supabase
-          .from('vault.product_secrets')
-          .select()
-          .eq('product_id', productId)
-          .order('created_at', ascending: false);
+  // Future<List<ProductSecret>> getProductSecrets(String productId) async {
+  //   try {
+  //     final response = await _supabase
+  //         .from('vault.product_secrets')
+  //         .select()
+  //         .eq('product_id', productId)
+  //         .order('created_at', ascending: false);
 
-      return (response as List).map((json) => ProductSecret.fromJson(json)).toList();
+  //     return (response as List).map((json) => ProductSecret.fromJson(json)).toList();
+  //   } catch (e) {
+  //     throw Exception('Failed to load product secrets: $e');
+  //   }
+  // }
+
+  Future<bool> deleteProduct(String asin) async {
+    try {
+      await _supabase.from('products').delete().eq('asin', asin);
+      return true;
     } catch (e) {
-      throw Exception('Failed to load product secrets: $e');
+      return false;
     }
   }
 }

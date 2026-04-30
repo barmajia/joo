@@ -28,6 +28,8 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
   }
 
   Future<void> _loadProducts() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -36,6 +38,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
+        if (!mounted) return;
         setState(() {
           _errorMessage = 'User not authenticated';
           _isLoading = false;
@@ -44,23 +47,26 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
       }
 
       final products = await _productService.getSellerProducts(user.id);
+      if (!mounted) return;
+
       final dealsMap = <String, List<ProductDeal>>{};
 
-      for (final product in products) {
-        if (product.id != null) {
-          final deals = await _productService.getProductDeals(product.id!);
-          if (deals.isNotEmpty) {
-            dealsMap[product.id!] = deals;
-          }
-        }
-      }
+      // for (final product in products) {
+      //   if (product.id != null) {
+      //     final deals = await _productService.getProductDeals(product.id!);
+      //     if (deals.isNotEmpty) {
+      //       dealsMap[product.id!] = deals;
+      //     }
+      //   }
+      // }
 
       setState(() {
         _products = products;
-        _productDeals = dealsMap;
+        // _productDeals = dealsMap;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -90,10 +96,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
       appBar: AppBar(
         title: const Text('My Products'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadProducts,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadProducts),
         ],
       ),
       body: Column(
@@ -107,7 +110,10 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
                 border: OutlineInputBorder(),
               ),
               items: [
-                const DropdownMenuItem(value: null, child: Text('All Categories')),
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('All Categories'),
+                ),
                 ...ProductCategories.categories.map((cat) {
                   return DropdownMenuItem(
                     value: cat.id,
@@ -182,105 +188,236 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
   }
 
   Widget _buildProductCard(Product product) {
-    final imageUrl = product.mainImage != null ? _getImageUrl(product.mainImage) : null;
+    final imageUrl = product.mainImage != null
+        ? _getImageUrl(product.mainImage)
+        : null;
     final deals = product.id != null ? _productDeals[product.id!] ?? [] : [];
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        children: [
-          ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: imageUrl != null && imageUrl.isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imageUrl,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stack) => Container(
+    return GestureDetector(
+      onLongPress: () => _showProductOptions(product),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          children: [
+            ListTile(
+              contentPadding: const EdgeInsets.all(12),
+              leading: imageUrl != null && imageUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        imageUrl,
                         width: 60,
                         height: 60,
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.image_not_supported),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) => Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.image_not_supported),
+                        ),
                       ),
+                    )
+                  : Container(
+                      width: 60,
+                      height: 60,
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.inventory_2),
                     ),
-                  )
-                : Container(
-                    width: 60,
-                    height: 60,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.inventory_2),
+              title: Text(
+                product.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(product.brand, style: const TextStyle(fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        '\$${product.price?.toStringAsFixed(2) ?? 'N/A'}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: product.isActive ? Colors.green : Colors.grey,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          product.status,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Qty: ${product.quantity}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
                   ),
-            title: Text(product.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(product.brand, style: const TextStyle(fontSize: 12)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      '\$${product.price?.toStringAsFixed(2) ?? 'N/A'}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: product.isActive ? Colors.green : Colors.grey,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        product.status,
-                        style: const TextStyle(color: Colors.white, fontSize: 10),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Qty: ${product.quantity}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            trailing: PopupMenuButton(
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                const PopupMenuItem(value: 'deals', child: Text('Deals')),
-                const PopupMenuItem(value: 'delete', child: Text('Delete')),
-              ],
-              onSelected: (value) {
-                // Handle menu actions
+                ],
+              ),
+              trailing: PopupMenuButton(
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  const PopupMenuItem(value: 'deals', child: Text('Deals')),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Text('Delete', style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+                onSelected: (value) => _handleMenuAction(value, product),
+              ),
+              onTap: () {
+                // Navigate to product detail page
               },
             ),
-            onTap: () {
-              // Navigate to product detail page
-            },
-          ),
-          if (deals.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Wrap(
-                spacing: 6,
-                children: deals.map((deal) {
-                  return Chip(
-                    avatar: const Icon(Icons.local_offer, size: 14),
-                    label: Text(
-                      deal.dealType == 'discount'
-                          ? '${deal.discountPercent}% off'
-                          : 'Special Deal',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    backgroundColor: Colors.green.shade50,
-                  );
-                }).toList(),
+            if (deals.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Wrap(
+                  spacing: 6,
+                  children: deals.map((deal) {
+                    return Chip(
+                      avatar: const Icon(Icons.local_offer, size: 14),
+                      label: Text(
+                        deal.dealType == 'discount'
+                            ? '${deal.discountPercent}% off'
+                            : 'Special Deal',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                      backgroundColor: Colors.green.shade50,
+                    );
+                  }).toList(),
+                ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showProductOptions(Product product) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Edit Product'),
+              onTap: () {
+                Navigator.pop(context);
+                _editProduct(product);
+              },
             ),
+            ListTile(
+              leading: const Icon(Icons.local_offer),
+              title: const Text('Manage Deals'),
+              onTap: () {
+                Navigator.pop(context);
+                // Navigate to deals page
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text(
+                'Delete Product',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteProduct(product);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleMenuAction(String value, Product product) {
+    switch (value) {
+      case 'edit':
+        _editProduct(product);
+        break;
+      case 'deals':
+        // Navigate to deals page
+        break;
+      case 'delete':
+        _deleteProduct(product);
+        break;
+    }
+  }
+
+  Future<void> _editProduct(Product product) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddProductPage(product: product),
+      ),
+    );
+    _loadProducts();
+  }
+
+  Future<void> _deleteProduct(Product product) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Product'),
+        content: Text('Are you sure you want to delete "${product.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
+
+    if (confirm != true) return;
+
+    try {
+      final productService = ProductService();
+      final success = await productService.deleteProduct(product.asin ?? '');
+      if (success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Product deleted successfully')),
+          );
+        }
+        _loadProducts();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to delete product')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 }

@@ -6,7 +6,8 @@ import 'package:aurora/models/product/productModel.dart';
 import 'package:aurora/models/product/categories.dart';
 
 class AddProductPage extends StatefulWidget {
-  const AddProductPage({super.key});
+  final Product? product;
+  const AddProductPage({super.key, this.product});
 
   @override
   State<AddProductPage> createState() => _AddProductPageState();
@@ -27,8 +28,31 @@ class _AddProductPageState extends State<AddProductPage> {
   String _status = 'draft';
   List<XFile> _selectedImages = [];
   bool _isSaving = false;
+  bool get _isEditing => widget.product != null;
   final _picker = ImagePicker();
   final _supabase = Supabase.instance.client;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      final product = widget.product!;
+      _titleController.text = product.title ?? '';
+      _descriptionController.text = product.description ?? '';
+      _brandController.text = product.brand ?? '';
+      _priceController.text = product.price?.toString() ?? '';
+      _quantityController.text = product.quantity?.toString() ?? '0';
+      _skuController.text = product.sku ?? '';
+      _asinController.text = product.asin ?? '';
+      _status = product.status ?? 'draft';
+      _selectedCategoryId = ProductCategories.categories
+          .firstWhere(
+            (cat) => cat.name == product.category,
+            orElse: () => ProductCategories.categories.first,
+          )
+          .id;
+    }
+  }
 
   Future<void> _pickImages() async {
     try {
@@ -56,7 +80,6 @@ class _AddProductPageState extends State<AddProductPage> {
       if (userId == null) throw Exception('User not authenticated');
 
       final productData = {
-        'seller_id': userId,
         'title': _titleController.text,
         'description': _descriptionController.text,
         'brand': _brandController.text,
@@ -70,40 +93,59 @@ class _AddProductPageState extends State<AddProductPage> {
         'subcategory': _selectedSubcategory,
         'sku': _skuController.text.isEmpty ? null : _skuController.text,
         'asin': _asinController.text.isEmpty ? null : _asinController.text,
-        'is_local_brand': false,
-        'allow_chat': true,
-        'attributes': {},
       };
 
-      final inserted = await _supabase
-          .from('products')
-          .insert(productData)
-          .select()
-          .single();
+      if (_isEditing) {
+        await _supabase
+            .from('products')
+            .update(productData)
+            .eq('asin', widget.product!.asin ?? '');
 
-      final productId = inserted['id'] as String;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Product updated successfully')),
+          );
+          Navigator.pop(context);
+        }
+      } else {
+        productData['seller_id'] = userId;
+        productData['is_local_brand'] = false;
+        productData['allow_chat'] = true;
+        productData['attributes'] = {};
 
-      if (_selectedImages.isNotEmpty) {
-        final images = <ProductImage>[];
-        for (var i = 0; i < _selectedImages.length; i++) {
-          final img = _selectedImages[i];
-          final fileName = '${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-          final path = '$userId/$productId/$fileName';
+        final inserted = await _supabase
+            .from('products')
+            .insert(productData)
+            .select()
+            .single();
 
-          await _supabase.storage.from('products').upload(path, File(img.path));
-          images.add(ProductImage(url: path, id: 'img_$i'));
+        final productId = inserted['id'] as String;
+
+        if (_selectedImages.isNotEmpty) {
+          final images = <ProductImage>[];
+          for (var i = 0; i < _selectedImages.length; i++) {
+            final img = _selectedImages[i];
+            final fileName =
+                '${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+            final path = '$userId/$productId/$fileName';
+
+            await _supabase.storage
+                .from('products')
+                .upload(path, File(img.path));
+            images.add(ProductImage(url: path, id: 'img_$i'));
+          }
+
+          await _supabase.from('products').update({
+            'images': images.map((e) => e.toJson()).toList(),
+          }).eq('id', productId);
         }
 
-        await _supabase.from('products').update({
-          'images': images.map((e) => e.toJson()).toList(),
-        }).eq('id', productId);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Product added successfully')),
-        );
-        Navigator.pop(context);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Product added successfully')),
+          );
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -132,7 +174,7 @@ class _AddProductPageState extends State<AddProductPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Product'),
+        title: Text(_isEditing ? 'Edit Product' : 'Add Product'),
         actions: [
           if (_isSaving)
             const Center(

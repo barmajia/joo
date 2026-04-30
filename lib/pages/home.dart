@@ -214,7 +214,7 @@ class _HomepapgeState extends State<Homepapge> {
           childAspectRatio: 1.5,
           children: [
             _buildActionCard('Products', Icons.inventory_2, Colors.blue, () {
-              Navigator.of(context).pushNamed('/seller_products');
+              Navigator.of(context).pushNamed('/seller_product');
             }),
             _buildActionCard('Customers', Icons.people, Colors.green, () {
               Navigator.of(context).pushNamed('/customers');
