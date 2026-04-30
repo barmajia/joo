@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:aurora/l10n/app_localizations.dart';
+import 'package:aurora/gen_l10n/app_localizations.dart';
 import '../providers/app_settings_provider.dart';
 
 class AppLockScreen extends StatefulWidget {
@@ -12,7 +12,10 @@ class AppLockScreen extends StatefulWidget {
 }
 
 class _AppLockScreenState extends State<AppLockScreen> {
-  final List<TextEditingController> _pinControllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _pinControllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _pinFocusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
   bool _isError = false;
@@ -64,13 +67,19 @@ class _AppLockScreenState extends State<AppLockScreen> {
     final pin = _pinControllers.map((c) => c.text).join();
     if (pin.length < 4) return;
 
-    setState(() { _isLoading = true; _isError = false; });
+    setState(() {
+      _isLoading = true;
+      _isError = false;
+    });
 
     final settings = Provider.of<AppSettingsProvider>(context, listen: false);
     final isValid = await settings.authenticatePassword(pin);
 
     if (mounted) {
-      setState(() { _isLoading = false; _isError = !isValid; });
+      setState(() {
+        _isLoading = false;
+        _isError = !isValid;
+      });
       if (!isValid) {
         for (var c in _pinControllers) c.clear();
         _pinFocusNodes[0].requestFocus();
@@ -98,11 +107,25 @@ class _AppLockScreenState extends State<AppLockScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
-              Icon(Icons.lock_outline, size: 80, color: theme.primaryColor.withOpacity(0.8)),
+              Icon(
+                Icons.lock_outline,
+                size: 80,
+                color: theme.primaryColor.withOpacity(0.8),
+              ),
               const SizedBox(height: 24),
-              Text(localizations.enterPin, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                localizations.enterPin,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text(localizations.enterPinCode, style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor)),
+              Text(
+                localizations.enterPinCode,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.hintColor,
+                ),
+              ),
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -119,18 +142,33 @@ class _AppLockScreenState extends State<AppLockScreen> {
                       decoration: InputDecoration(
                         counterText: '',
                         filled: true,
-                        fillColor: _isError ? Colors.red.withOpacity(0.1) : theme.colorScheme.primaryContainer.withOpacity(0.3),
+                        fillColor: _isError
+                            ? Colors.red.withOpacity(0.1)
+                            : theme.colorScheme.primaryContainer.withOpacity(
+                                0.3,
+                              ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: _isError ? Colors.red : theme.primaryColor.withOpacity(0.3)),
+                          borderSide: BorderSide(
+                            color: _isError
+                                ? Colors.red
+                                : theme.primaryColor.withOpacity(0.3),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: _isError ? Colors.red : theme.primaryColor.withOpacity(0.3)),
+                          borderSide: BorderSide(
+                            color: _isError
+                                ? Colors.red
+                                : theme.primaryColor.withOpacity(0.3),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: theme.primaryColor, width: 2),
+                          borderSide: BorderSide(
+                            color: theme.primaryColor,
+                            width: 2,
+                          ),
                         ),
                       ),
                       onChanged: (value) => _onPinChanged(value, index),
@@ -140,7 +178,13 @@ class _AppLockScreenState extends State<AppLockScreen> {
               ),
               if (_isError) ...[
                 const SizedBox(height: 16),
-                Text(localizations.incorrectPin, style: TextStyle(color: Colors.red[400], fontWeight: FontWeight.w500)),
+                Text(
+                  localizations.incorrectPin,
+                  style: TextStyle(
+                    color: Colors.red[400],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
               const SizedBox(height: 32),
               SizedBox(
@@ -148,9 +192,17 @@ class _AppLockScreenState extends State<AppLockScreen> {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submitPin,
-                  style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                   child: _isLoading
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : Text(localizations.unlock),
                 ),
               ),

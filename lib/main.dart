@@ -18,7 +18,7 @@ import 'package:aurora/pages/profile/profile.dart';
 import 'package:aurora/pages/settings.dart';
 import 'package:aurora/theme/theme_provider.dart';
 import 'package:aurora/locale/locale_provider.dart';
-import 'package:aurora/l10n/app_localizations.dart';
+import 'package:aurora/gen_l10n/app_localizations.dart';
 import 'package:aurora/supabase/supabase_auth.dart';
 import 'package:aurora/users/account_type.dart';
 import 'package:aurora/providers/app_settings_provider.dart';
@@ -145,7 +145,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     try {
       await Storage.init();
-      
+
       final supabase = Supabase.instance.client;
       final currentUser = supabase.auth.currentUser;
 
@@ -181,7 +181,10 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             const Icon(Icons.storefront, size: 100, color: Color(0xFF6366F1)),
             const SizedBox(height: 24),
-            const Text('Aurora', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold)),
+            const Text(
+              'Aurora',
+              style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 32),
             const CircularProgressIndicator(),
           ],

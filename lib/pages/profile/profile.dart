@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:aurora/storage/userStorage.dart';
 import 'package:aurora/users/account_type.dart';
-import 'package:aurora/l10n/app_localizations.dart';
+import 'package:aurora/gen_l10n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -44,7 +44,9 @@ class _ProfilePageState extends State<ProfilePage> {
     if (user != null) {
       _nameController.text = user.name;
       _emailController.text = user.email;
-      _phoneController.text = user.phonenumber != 0 ? user.phonenumber.toString() : '';
+      _phoneController.text = user.phonenumber != 0
+          ? user.phonenumber.toString()
+          : '';
     }
   }
 
@@ -68,23 +70,32 @@ class _ProfilePageState extends State<ProfilePage> {
       if (authUser == null) return;
 
       final tableName = userStorage.isFactory ? 'factories' : 'sellers';
-      await supabase.from(tableName).update({
-        'full_name': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('user_id', authUser.id);
+      await supabase
+          .from(tableName)
+          .update({
+            'full_name': _nameController.text.trim(),
+            'phone': _phoneController.text.trim(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', authUser.id);
 
       if (mounted) {
         setState(() => _isEditing = false);
         userStorage.loadUser(userStorage.accountType!);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Profile updated'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Failed to update: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -116,7 +127,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   String _generateSecureToken(String encoded) {
     final random = Random();
-    final salt = List.generate(4, (i) => random.nextInt(26) + 97).map((e) => String.fromCharCode(e)).join();
+    final salt = List.generate(
+      4,
+      (i) => random.nextInt(26) + 97,
+    ).map((e) => String.fromCharCode(e)).join();
     return 'aurora_${salt}_$encoded';
   }
 
@@ -128,8 +142,14 @@ class _ProfilePageState extends State<ProfilePage> {
         title: Text(localizations.logout),
         content: Text(localizations.logoutConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(localizations.cancel)),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: Text(localizations.logout)),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localizations.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(localizations.logout),
+          ),
         ],
       ),
     );
@@ -153,7 +173,9 @@ class _ProfilePageState extends State<ProfilePage> {
         builder: (context, userStorage, _) {
           final user = userStorage.currentUser;
           final accountType = userStorage.accountType;
-          final initials = user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : '?';
+          final initials = user?.name.isNotEmpty == true
+              ? user!.name[0].toUpperCase()
+              : '?';
 
           return CustomScrollView(
             slivers: [
@@ -165,7 +187,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   IconButton(
                     icon: Icon(_isEditing ? Icons.check : Icons.edit),
                     onPressed: _toggleEdit,
-                    tooltip: _isEditing ? localizations.save : localizations.edit,
+                    tooltip: _isEditing
+                        ? localizations.save
+                        : localizations.edit,
                   ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),
@@ -174,17 +198,26 @@ class _ProfilePageState extends State<ProfilePage> {
                       if (value == 'logout') _logout();
                     },
                     itemBuilder: (context) => [
-                      PopupMenuItem(value: 'share', child: ListTile(
-                        leading: const Icon(Icons.share_outlined),
-                        title: Text(localizations.shareProfile),
-                        contentPadding: EdgeInsets.zero,
-                      )),
+                      PopupMenuItem(
+                        value: 'share',
+                        child: ListTile(
+                          leading: const Icon(Icons.share_outlined),
+                          title: Text(localizations.shareProfile),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                       const PopupMenuDivider(),
-                      PopupMenuItem(value: 'logout', child: ListTile(
-                        leading: const Icon(Icons.logout, color: Colors.red),
-                        title: Text(localizations.logout, style: const TextStyle(color: Colors.red)),
-                        contentPadding: EdgeInsets.zero,
-                      )),
+                      PopupMenuItem(
+                        value: 'logout',
+                        child: ListTile(
+                          leading: const Icon(Icons.logout, color: Colors.red),
+                          title: Text(
+                            localizations.logout,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -192,7 +225,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   background: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [theme.primaryColor, theme.primaryColor.withOpacity(0.6)],
+                        colors: [
+                          theme.primaryColor,
+                          theme.primaryColor.withOpacity(0.6),
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -210,21 +246,32 @@ class _ProfilePageState extends State<ProfilePage> {
                                   backgroundColor: Colors.white,
                                   child: Text(
                                     initials,
-                                    style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold, color: theme.primaryColor),
+                                    style: TextStyle(
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.primaryColor,
+                                    ),
                                   ),
                                 ),
                                 Positioned(
                                   bottom: 0,
                                   right: 0,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
                                       _getAccountTypeShort(accountType),
-                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.primaryColor),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.primaryColor,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -239,86 +286,105 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
 
               SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionHeader(localizations.accountInfo),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader(localizations.accountInfo),
+                      _buildInfoTile(
+                        icon: Icons.badge_outlined,
+                        label: localizations.userId,
+                        value: user?.id ?? localizations.notSet,
+                        isCopyable: true,
+                        onTap: () => _copyToClipboard(
+                          user?.id ?? '',
+                          localizations.userId,
+                        ),
+                      ),
+                      _buildInfoTile(
+                        icon: Icons.email_outlined,
+                        label: localizations.email,
+                        value: user?.email ?? localizations.notSet,
+                        isCopyable: true,
+                        onTap: () => _copyToClipboard(
+                          user?.email ?? '',
+                          localizations.email,
+                        ),
+                      ),
+                      _buildInfoTile(
+                        icon: Icons.calendar_today_outlined,
+                        label: localizations.memberSince,
+                        value: user?.createdAt != null
+                            ? _formatDate(user!.createdAt, localizations)
+                            : localizations.unknown,
+                      ),
+
+                      const SizedBox(height: 20),
+                      _buildSectionHeader(localizations.personalDetails),
+                      if (_isEditing) ...[
+                        _buildEditField(
+                          icon: Icons.person_outlined,
+                          label: localizations.fullName,
+                          controller: _nameController,
+                        ),
+                        _buildEditField(
+                          icon: Icons.phone_outlined,
+                          label: localizations.phone,
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ] else ...[
                         _buildInfoTile(
-                          icon: Icons.badge_outlined,
-                          label: localizations.userId,
-                          value: user?.id ?? localizations.notSet,
-                          isCopyable: true,
-                          onTap: () => _copyToClipboard(user?.id ?? '', localizations.userId),
+                          icon: Icons.person_outlined,
+                          label: localizations.fullName,
+                          value: user?.name ?? localizations.notSet,
                         ),
                         _buildInfoTile(
-                          icon: Icons.email_outlined,
-                          label: localizations.email,
-                          value: user?.email ?? localizations.notSet,
-                          isCopyable: true,
-                          onTap: () => _copyToClipboard(user?.email ?? '', localizations.email),
+                          icon: Icons.phone_outlined,
+                          label: localizations.phone,
+                          value: user?.phonenumber != 0
+                              ? user!.phonenumber.toString()
+                              : localizations.notSet,
+                        ),
+                      ],
+
+                      if (accountType == AccountType.seller) ...[
+                        _buildInfoTile(
+                          icon: Icons.store_outlined,
+                          label: localizations.location,
+                          value:
+                              user?.metadata?['location']?.toString() ??
+                              localizations.notSet,
                         ),
                         _buildInfoTile(
-                          icon: Icons.calendar_today_outlined,
-                          label: localizations.memberSince,
-                          value: user?.createdAt != null ? _formatDate(user!.createdAt, localizations) : localizations.unknown,
+                          icon: Icons.shopping_bag_outlined,
+                          label: localizations.minOrderQty,
+                          value:
+                              user?.metadata?['min_order_quantity']
+                                  ?.toString() ??
+                              '1',
                         ),
+                      ],
+                      if (accountType == AccountType.factory) ...[
+                        _buildInfoTile(
+                          icon: Icons.factory_outlined,
+                          label: localizations.companyName,
+                          value:
+                              user?.metadata?['company_name']?.toString() ??
+                              localizations.notSet,
+                        ),
+                        _buildInfoTile(
+                          icon: Icons.work_outline,
+                          label: localizations.specialization,
+                          value:
+                              user?.metadata?['specialization']?.toString() ??
+                              localizations.notSet,
+                        ),
+                      ],
 
-                        const SizedBox(height: 20),
-                        _buildSectionHeader(localizations.personalDetails),
-                        if (_isEditing) ...[
-                          _buildEditField(
-                            icon: Icons.person_outlined,
-                            label: localizations.fullName,
-                            controller: _nameController,
-                          ),
-                          _buildEditField(
-                            icon: Icons.phone_outlined,
-                            label: localizations.phone,
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                          ),
-                        ] else ...[
-                          _buildInfoTile(
-                            icon: Icons.person_outlined,
-                            label: localizations.fullName,
-                            value: user?.name ?? localizations.notSet,
-                          ),
-                          _buildInfoTile(
-                            icon: Icons.phone_outlined,
-                            label: localizations.phone,
-                            value: user?.phonenumber != 0 ? user!.phonenumber.toString() : localizations.notSet,
-                          ),
-                        ],
-
-                        if (accountType == AccountType.seller) ...[
-                          _buildInfoTile(
-                            icon: Icons.store_outlined,
-                            label: localizations.location,
-                            value: user?.metadata?['location']?.toString() ?? localizations.notSet,
-                          ),
-                          _buildInfoTile(
-                            icon: Icons.shopping_bag_outlined,
-                            label: localizations.minOrderQty,
-                            value: user?.metadata?['min_order_quantity']?.toString() ?? '1',
-                          ),
-                        ],
-                        if (accountType == AccountType.factory) ...[
-                          _buildInfoTile(
-                            icon: Icons.factory_outlined,
-                            label: localizations.companyName,
-                            value: user?.metadata?['company_name']?.toString() ?? localizations.notSet,
-                          ),
-                          _buildInfoTile(
-                            icon: Icons.work_outline,
-                            label: localizations.specialization,
-                            value: user?.metadata?['specialization']?.toString() ?? localizations.notSet,
-                          ),
-                        ],
-
-                        const SizedBox(height: 24),
-                        _buildSectionHeader(localizations.secureSharing),
+                      const SizedBox(height: 24),
+                      _buildSectionHeader(localizations.secureSharing),
                       Material(
                         color: theme.cardColor,
                         borderRadius: BorderRadius.circular(12),
@@ -335,20 +401,40 @@ class _ProfilePageState extends State<ProfilePage> {
                                     color: theme.primaryColor.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: Icon(Icons.shield_outlined, color: theme.primaryColor, size: 24),
+                                  child: Icon(
+                                    Icons.shield_outlined,
+                                    color: theme.primaryColor,
+                                    size: 24,
+                                  ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(localizations.shareProfile, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
+                                      Text(
+                                        localizations.shareProfile,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 15,
+                                        ),
+                                      ),
                                       const SizedBox(height: 2),
-                                      Text(localizations.generateSecureToken, style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                                      Text(
+                                        localizations.generateSecureToken,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: theme.hintColor,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
-                                Icon(Icons.chevron_right, color: theme.hintColor),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: theme.hintColor,
+                                ),
                               ],
                             ),
                           ),
@@ -372,7 +458,9 @@ class _ProfilePageState extends State<ProfilePage> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -413,9 +501,18 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(label, style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                      Text(
+                        label,
+                        style: TextStyle(fontSize: 12, color: theme.hintColor),
+                      ),
                       const SizedBox(height: 2),
-                      Text(displayValue, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                      Text(
+                        displayValue,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -463,7 +560,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     labelText: label,
                     border: const OutlineInputBorder(),
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                   keyboardType: keyboardType,
                 ),
@@ -478,22 +578,44 @@ class _ProfilePageState extends State<ProfilePage> {
   void _copyToClipboard(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label copied'), duration: const Duration(seconds: 2), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text('$label copied'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
   String _getAccountTypeShort(AccountType? type) {
     switch (type) {
-      case AccountType.seller: return 'SELLER';
-      case AccountType.factory: return 'FACTORY';
-      case AccountType.customser: return 'CUSTOMER';
-      case AccountType.middleman: return 'MIDDLEMAN';
-      default: return 'USER';
+      case AccountType.seller:
+        return 'SELLER';
+      case AccountType.factory:
+        return 'FACTORY';
+      case AccountType.customser:
+        return 'CUSTOMER';
+      case AccountType.middleman:
+        return 'MIDDLEMAN';
+      default:
+        return 'USER';
     }
   }
 
   String _formatDate(DateTime date, AppLocalizations localizations) {
-    final months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    final months = [
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
+    ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
@@ -530,18 +652,30 @@ class _ShareDialog extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text('${data['name']}, ${data['account_type']}', style: TextStyle(fontSize: 12, color: theme.hintColor)),
-          Text(localizations.tokenExpires, style: TextStyle(fontSize: 11, color: theme.hintColor)),
+          Text(
+            '${data['name']}, ${data['account_type']}',
+            style: TextStyle(fontSize: 12, color: theme.hintColor),
+          ),
+          Text(
+            localizations.tokenExpires,
+            style: TextStyle(fontSize: 11, color: theme.hintColor),
+          ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(localizations.close)),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(localizations.close),
+        ),
         FilledButton.icon(
           onPressed: () {
             Clipboard.setData(ClipboardData(text: token));
             Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(localizations.tokenCopied), backgroundColor: Colors.green),
+              SnackBar(
+                content: Text(localizations.tokenCopied),
+                backgroundColor: Colors.green,
+              ),
             );
           },
           icon: const Icon(Icons.copy, size: 18),

@@ -584,4 +584,244 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get attention => 'انتباه';
+
+  @override
+  String get keyMetrics => 'المقاييس الرئيسية';
+
+  @override
+  String get topProducts => 'أفضل المنتجات';
+
+  @override
+  String get topCustomers => 'أفضل العملاء';
+
+  @override
+  String get dailyBreakdown => 'التفصيل اليومي';
+
+  @override
+  String get itemsSold => 'العناصر المباعة';
+
+  @override
+  String get avgOrder => 'متوسط الطلب';
+
+  @override
+  String get noProductData => 'لا توجد بيانات منتجات متاحة';
+
+  @override
+  String get noCustomerData => 'لا توجد بيانات عملاء متاحة';
+
+  @override
+  String get noDailyBreakdown => 'لا يوجد تفصيل يومي متاحة';
+
+  @override
+  String get actionableInsights => 'رؤى قابلة للتنفيذ';
+
+  @override
+  String get yourGoals => 'أهدافك';
+
+  @override
+  String get trackGoals => 'تتبع تقدمك وحقق أهداف عملك';
+
+  @override
+  String get noGoalsYet => 'لا توجد أهداف بعد';
+
+  @override
+  String get createFirstGoal => 'أنشئ هدفك الأول لبدء تتبع أدائك';
+
+  @override
+  String get createGoalBtn => 'إنشاء هدف';
+
+  @override
+  String get goalCreated => 'تم إنشاء الهدف بنجاح';
+
+  @override
+  String get goalUpdated => 'تم تحديث الهدف بنجاح';
+
+  @override
+  String get goalDeleted => 'تم حذف الهدف';
+
+  @override
+  String get deleteGoal => 'حذف الهدف';
+
+  @override
+  String get deleteGoalConfirm => 'هل أنت متأكد أنك تريد حذف';
+
+  @override
+  String get goalDetails => 'تفاصيل الهدف';
+
+  @override
+  String get description => 'الوصف';
+
+  @override
+  String get target => 'الهدف';
+
+  @override
+  String get current => 'الحالي';
+
+  @override
+  String get progress => 'التقدم';
+
+  @override
+  String get dailyNeed => 'الاحتياج اليومي';
+
+  @override
+  String get startDate => 'تاريخ البدء';
+
+  @override
+  String get endDate => 'تاريخ الانتهاء';
+
+  @override
+  String get daysRemaining => 'يوم متبقي';
+
+  @override
+  String get goalAchieved => 'تم تحقيق الهدف!';
+
+  @override
+  String get quantity => 'الكمية';
+
+  @override
+  String get billCreated => 'تم إنشاء الفاتورة بنجاح';
+
+  @override
+  String get selectCustomerRequired => 'يرجى اختيار عميل';
+
+  @override
+  String get addItem => 'إضافة عنصر';
+
+  @override
+  String get addAnotherItem => 'إضافة عنصر آخر';
+
+  @override
+  String get productName => 'اسم المنتج';
+
+  @override
+  String get unitPrice => 'سعر الوحدة';
+
+  @override
+  String get subtotalRequired => 'المجموع الفرعي مطلوب';
+
+  @override
+  String get subtotal => 'المجموع الفرعي';
+
+  @override
+  String get discount => 'الخصم';
+
+  @override
+  String get tax => 'الضريبة';
+
+  @override
+  String get shipping => 'الشحن';
+
+  @override
+  String get total => 'الإجمالي';
+
+  @override
+  String get paymentMethod => 'طريقة الدفع';
+
+  @override
+  String get notes => 'ملاحظات';
+
+  @override
+  String get createBillBtn => 'إنشاء فاتورة';
+
+  @override
+  String get noBillsYet => 'لا توجد فواتير بعد';
+
+  @override
+  String get noBillsForCustomer => 'لا توجد فواتير لهذا العميل بعد';
+
+  @override
+  String get allBills => 'جميع الفواتير';
+
+  @override
+  String get unpaid => 'غير مدفوع';
+
+  @override
+  String get paid => 'مدفوع';
+
+  @override
+  String get overdue => 'متأخر';
+
+  @override
+  String get filterStatus => 'تصفية حسب الحالة';
+
+  @override
+  String get sortBy => 'ترتيب حسب';
+
+  @override
+  String get dateNewest => 'التاريخ (الأحدث)';
+
+  @override
+  String get dateOldest => 'التاريخ (الأقدم)';
+
+  @override
+  String get amountHighest => 'المبلغ (الأعلى)';
+
+  @override
+  String get amountLowest => 'المبلغ (الأقل)';
+
+  @override
+  String get viewBills => 'عرض الفواتير';
+
+  @override
+  String get customerName => 'اسم العميل';
+
+  @override
+  String get customerPhone => 'الهاتف';
+
+  @override
+  String get customerAddress => 'العنوان';
+
+  @override
+  String get customerType => 'النوع';
+
+  @override
+  String get editCustomer => 'تعديل العميل';
+
+  @override
+  String get deleteCustomer => 'حذف العميل';
+
+  @override
+  String get deleteCustomerConfirm => 'هل أنت متأكد أنك تريد حذف هذا العميل؟';
+
+  @override
+  String get customerCreated => 'تم إنشاء العميل بنجاح';
+
+  @override
+  String get customerUpdated => 'تم تحديث العميل بنجاح';
+
+  @override
+  String get customerDeleted => 'تم حذف العميل بنجاح';
+
+  @override
+  String get nameRequired => 'الاسم مطلوب';
+
+  @override
+  String get phoneRequired => 'الهاتف مطلوب';
+
+  @override
+  String get failedToCreateBill => 'فشل إنشاء الفاتورة';
+
+  @override
+  String get failedToLoadCustomers => 'فشل تحميل العملاء';
+
+  @override
+  String get searchCustomers => 'بحث في العملاء';
+
+  @override
+  String get nameOrPhone => 'الاسم أو الهاتف';
+
+  @override
+  String get gridView => 'عرض الشبكة';
+
+  @override
+  String get tableView => 'عرض الجدول';
+
+  @override
+  String get expandAll => 'توسيع الكل';
+
+  @override
+  String get collapseAll => 'طي الكل';
+
+  @override
+  String get customerBills => 'فواتير العميل';
 }

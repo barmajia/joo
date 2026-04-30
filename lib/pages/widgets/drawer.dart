@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:aurora/l10n/app_localizations.dart';
+import 'package:aurora/gen_l10n/app_localizations.dart';
 import 'package:aurora/storage/userStorage.dart';
 import 'package:aurora/users/account_type.dart';
 
 class FixidDrawer extends StatelessWidget {
   const FixidDrawer({super.key});
 
-  String _getAccountTypeName(AccountType? accountType, AppLocalizations localizations) {
+  String _getAccountTypeName(
+    AccountType? accountType,
+    AppLocalizations localizations,
+  ) {
     if (accountType == null) return localizations.unknown;
     switch (accountType) {
       case AccountType.seller:
@@ -60,10 +63,7 @@ class FixidDrawer extends StatelessWidget {
                 builder: (context, value, child) {
                   return Transform.translate(
                     offset: Offset(0, 20 * (1 - value)),
-                    child: Opacity(
-                      opacity: value,
-                      child: child,
-                    ),
+                    child: Opacity(opacity: value, child: child),
                   );
                 },
                 child: Container(
@@ -304,7 +304,13 @@ class FixidDrawer extends StatelessWidget {
               children: [
                 Icon(icon, size: 24),
                 const SizedBox(width: 16),
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),

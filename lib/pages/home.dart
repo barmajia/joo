@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:aurora/storage/userStorage.dart';
-import 'package:aurora/l10n/app_localizations.dart';
+import 'package:aurora/gen_l10n/app_localizations.dart';
 import './widgets/drawer.dart';
 
 class Homepapge extends StatefulWidget {
@@ -74,7 +74,10 @@ class _HomepapgeState extends State<Homepapge> {
     );
   }
 
-  Widget _buildWelcomeSection(BuildContext context, AppLocalizations localizations) {
+  Widget _buildWelcomeSection(
+    BuildContext context,
+    AppLocalizations localizations,
+  ) {
     final name = _sellerData?['full_name'] ?? localizations.seller;
     final storeName = _sellerData?['store_name'] ?? localizations.yourStore;
 
@@ -152,7 +155,10 @@ class _HomepapgeState extends State<Homepapge> {
     );
   }
 
-  Widget _buildStatsSection(BuildContext context, AppLocalizations localizations) {
+  Widget _buildStatsSection(
+    BuildContext context,
+    AppLocalizations localizations,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -226,7 +232,10 @@ class _HomepapgeState extends State<Homepapge> {
     );
   }
 
-  Widget _buildQuickActions(BuildContext context, AppLocalizations localizations) {
+  Widget _buildQuickActions(
+    BuildContext context,
+    AppLocalizations localizations,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

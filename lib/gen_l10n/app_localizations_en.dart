@@ -586,4 +586,247 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get attention => 'Attention';
+
+  @override
+  String get keyMetrics => 'Key Metrics';
+
+  @override
+  String get topProducts => 'Top Products';
+
+  @override
+  String get topCustomers => 'Top Customers';
+
+  @override
+  String get dailyBreakdown => 'Daily Breakdown';
+
+  @override
+  String get itemsSold => 'Items Sold';
+
+  @override
+  String get avgOrder => 'Avg Order';
+
+  @override
+  String get noProductData => 'No product data available';
+
+  @override
+  String get noCustomerData => 'No customer data available';
+
+  @override
+  String get noDailyBreakdown => 'No daily breakdown available';
+
+  @override
+  String get actionableInsights => 'Actionable Insights';
+
+  @override
+  String get yourGoals => 'Your Goals';
+
+  @override
+  String get trackGoals =>
+      'Track your progress and achieve your business targets';
+
+  @override
+  String get noGoalsYet => 'No goals yet';
+
+  @override
+  String get createFirstGoal =>
+      'Create your first goal to start tracking your performance';
+
+  @override
+  String get createGoalBtn => 'Create Goal';
+
+  @override
+  String get goalCreated => 'Goal created successfully';
+
+  @override
+  String get goalUpdated => 'Goal updated successfully';
+
+  @override
+  String get goalDeleted => 'Goal deleted';
+
+  @override
+  String get deleteGoal => 'Delete Goal';
+
+  @override
+  String get deleteGoalConfirm => 'Are you sure you want to delete';
+
+  @override
+  String get goalDetails => 'Goal Details';
+
+  @override
+  String get description => 'Description';
+
+  @override
+  String get target => 'Target';
+
+  @override
+  String get current => 'Current';
+
+  @override
+  String get progress => 'Progress';
+
+  @override
+  String get dailyNeed => 'Daily Need';
+
+  @override
+  String get startDate => 'Start Date';
+
+  @override
+  String get endDate => 'End Date';
+
+  @override
+  String get daysRemaining => 'days remaining';
+
+  @override
+  String get goalAchieved => 'Goal Achieved!';
+
+  @override
+  String get quantity => 'Qty';
+
+  @override
+  String get billCreated => 'Bill created successfully';
+
+  @override
+  String get selectCustomerRequired => 'Please select a customer';
+
+  @override
+  String get addItem => 'Add Item';
+
+  @override
+  String get addAnotherItem => 'Add Another Item';
+
+  @override
+  String get productName => 'Product Name';
+
+  @override
+  String get unitPrice => 'Unit Price';
+
+  @override
+  String get subtotalRequired => 'Subtotal is required';
+
+  @override
+  String get subtotal => 'Subtotal';
+
+  @override
+  String get discount => 'Discount';
+
+  @override
+  String get tax => 'Tax';
+
+  @override
+  String get shipping => 'Shipping';
+
+  @override
+  String get total => 'Total';
+
+  @override
+  String get paymentMethod => 'Payment Method';
+
+  @override
+  String get notes => 'Notes';
+
+  @override
+  String get createBillBtn => 'Create Bill';
+
+  @override
+  String get noBillsYet => 'No bills yet';
+
+  @override
+  String get noBillsForCustomer => 'No bills for this customer yet';
+
+  @override
+  String get allBills => 'All Bills';
+
+  @override
+  String get unpaid => 'Unpaid';
+
+  @override
+  String get paid => 'Paid';
+
+  @override
+  String get overdue => 'Overdue';
+
+  @override
+  String get filterStatus => 'Filter by Status';
+
+  @override
+  String get sortBy => 'Sort by';
+
+  @override
+  String get dateNewest => 'Date (Newest)';
+
+  @override
+  String get dateOldest => 'Date (Oldest)';
+
+  @override
+  String get amountHighest => 'Amount (Highest)';
+
+  @override
+  String get amountLowest => 'Amount (Lowest)';
+
+  @override
+  String get viewBills => 'View Bills';
+
+  @override
+  String get customerName => 'Customer Name';
+
+  @override
+  String get customerPhone => 'Phone';
+
+  @override
+  String get customerAddress => 'Address';
+
+  @override
+  String get customerType => 'Type';
+
+  @override
+  String get editCustomer => 'Edit Customer';
+
+  @override
+  String get deleteCustomer => 'Delete Customer';
+
+  @override
+  String get deleteCustomerConfirm =>
+      'Are you sure you want to delete this customer?';
+
+  @override
+  String get customerCreated => 'Customer created successfully';
+
+  @override
+  String get customerUpdated => 'Customer updated successfully';
+
+  @override
+  String get customerDeleted => 'Customer deleted successfully';
+
+  @override
+  String get nameRequired => 'Name is required';
+
+  @override
+  String get phoneRequired => 'Phone is required';
+
+  @override
+  String get failedToCreateBill => 'Failed to create bill';
+
+  @override
+  String get failedToLoadCustomers => 'Failed to load customers';
+
+  @override
+  String get searchCustomers => 'Search customers';
+
+  @override
+  String get nameOrPhone => 'Name or phone';
+
+  @override
+  String get gridView => 'Grid View';
+
+  @override
+  String get tableView => 'Table View';
+
+  @override
+  String get expandAll => 'Expand All';
+
+  @override
+  String get collapseAll => 'Collapse All';
+
+  @override
+  String get customerBills => 'Customer Bills';
 }

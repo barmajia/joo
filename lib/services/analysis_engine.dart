@@ -3,12 +3,20 @@ import 'package:aurora/models/analysis/analytics.dart';
 import 'package:aurora/models/analysis/enums.dart';
 import 'package:aurora/storage/analysis/analytics_storage.dart';
 import 'package:aurora/storage/order_storage.dart';
+import 'package:aurora/storage/bill_vault_storage.dart';
 import 'package:flutter/material.dart';
 
 class AnalysisEngine {
   static final AnalysisEngine _instance = AnalysisEngine._internal();
   factory AnalysisEngine() => _instance;
   AnalysisEngine._internal();
+
+  BillVaultStorage? _vault;
+
+  Future<BillVaultStorage> _getVault() async {
+    _vault ??= await BillVaultStorage.getInstance();
+    return _vault!;
+  }
 
   Future<AnalyticsSnapshot?> analyzeBills({
     required String sellerId,
@@ -20,7 +28,13 @@ class AnalysisEngine {
     final end = endDate ?? DateTime.now();
 
     try {
-      final orders = await OrderStorage.getOrders();
+      final vault = await _getVault();
+      List<Order> orders = vault.getSellerBills(sellerId);
+
+      if (orders.isEmpty) {
+        orders = await OrderStorage.getOrders();
+      }
+
       final filteredOrders = orders.where((order) {
         return order.createdAt.isAfter(
               start.subtract(const Duration(days: 1)),

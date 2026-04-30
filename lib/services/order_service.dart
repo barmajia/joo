@@ -3,11 +3,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/enums.dart';
 import 'package:aurora/storage/order_storage.dart';
+import 'package:aurora/storage/bill_vault_storage.dart';
 
 class OrderService {
   static final OrderService _instance = OrderService._internal();
   factory OrderService() => _instance;
   OrderService._internal();
+
+  BillVaultStorage? _vault;
+
+  Future<BillVaultStorage> _getVault() async {
+    _vault ??= await BillVaultStorage.getInstance();
+    return _vault!;
+  }
 
   Future<List<Order>> fetchOrdersBySeller(String sellerId) async {
     try {
@@ -28,9 +36,14 @@ class OrderService {
       }).toList();
 
       await OrderStorage.saveOrders(orders);
+      final vault = await _getVault();
+      await vault.refreshSellerBills(sellerId, orders);
       return orders;
     } catch (e) {
       debugPrint('[OrderService.fetchOrdersBySeller] Error: $e');
+      final vault = await _getVault();
+      final cached = vault.getSellerBills(sellerId);
+      if (cached.isNotEmpty) return cached;
       return await OrderStorage.getOrders();
     }
   }
@@ -43,7 +56,7 @@ class OrderService {
           .eq('user_id', customerId)
           .order('created_at', ascending: false);
 
-      return response.map((item) {
+      final orders = response.map((item) {
         final orderMap = Map<String, dynamic>.from(item);
         if (orderMap['items'] is List) {
           orderMap['items'] = (orderMap['items'] as List)
@@ -52,8 +65,15 @@ class OrderService {
         }
         return Order.fromMap(orderMap);
       }).toList();
+
+      final vault = await _getVault();
+      await vault.saveCustomerBills(customerId, orders);
+      return orders;
     } catch (e) {
       debugPrint('[OrderService.fetchOrdersByCustomer] Error: $e');
+      final vault = await _getVault();
+      final cached = vault.getCustomerBills(customerId);
+      if (cached.isNotEmpty) return cached;
       return await OrderStorage.getOrdersByCustomer(customerId);
     }
   }
@@ -102,6 +122,8 @@ class OrderService {
         }
 
         await OrderStorage.addOrder(created);
+        final vault = await _getVault();
+        await vault.saveBill(created.id, created);
         return created;
       }
     } catch (e) {
@@ -133,11 +155,15 @@ class OrderService {
         }
 
         await OrderStorage.updateOrder(updated);
+        final vault = await _getVault();
+        await vault.saveBill(updated.id, updated);
         return updated;
       }
     } catch (e) {
       debugPrint('[OrderService.updateOrder] Error: $e');
       await OrderStorage.updateOrder(order);
+      final vault = await _getVault();
+      await vault.saveBill(order.id, order);
     }
     return order;
   }
@@ -183,6 +209,8 @@ class OrderService {
           .delete()
           .eq('id', orderId);
       await OrderStorage.deleteOrder(orderId);
+      final vault = await _getVault();
+      await vault.deleteBill(orderId);
     } catch (e) {
       debugPrint('[OrderService.deleteOrder] Error: $e');
       rethrow;

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:aurora/models/customers/customermodel.dart';
 import 'package:aurora/models/analysis/enums.dart';
 import 'package:aurora/services/customer_service.dart';
+import 'package:aurora/storage/userStorage.dart';
 
 class CustomerFormPage extends StatefulWidget {
   final Customer? customer;
@@ -17,6 +20,7 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
+  final _addressController = TextEditingController();
   final _notesController = TextEditingController();
   AgeRange? _selectedAgeRange;
   final CustomerService _customerService = CustomerService();
@@ -39,6 +43,7 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _addressController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -48,29 +53,44 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
 
     setState(() => _isSaving = true);
     try {
+      final userStorage = Provider.of<UserStorage>(context, listen: false);
+      final sellerId = userStorage.currentUser?.id ?? '';
+
+      if (sellerId.isEmpty) {
+        throw Exception('User not authenticated');
+      }
+
       final customer = Customer(
-        id: widget.customer?.id ?? '',
-        name: _nameController.text,
-        phone: _phoneController.text,
-        email: _emailController.text.isNotEmpty ? _emailController.text : null,
+        id: widget.customer?.id ?? const Uuid().v4(),
+        name: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        email: _emailController.text.trim().isNotEmpty
+            ? _emailController.text.trim()
+            : null,
         ageRange: _selectedAgeRange,
-        notes: _notesController.text.isNotEmpty ? _notesController.text : null,
-        sellerId: '',
+        notes: _notesController.text.trim().isNotEmpty
+            ? _notesController.text.trim()
+            : null,
+        sellerId: sellerId,
       );
 
+      Customer? result;
       if (widget.customer == null) {
-        await _customerService.createCustomer(customer);
+        result = await _customerService.createCustomer(customer);
       } else {
-        await _customerService.updateCustomer(customer);
+        result = await _customerService.updateCustomer(customer);
       }
 
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.of(context).pop(result);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(widget.customer == null
-                ? 'Customer added successfully'
-                : 'Customer updated successfully'),
+            content: Text(
+              widget.customer == null
+                  ? 'Customer added successfully'
+                  : 'Customer updated successfully',
+            ),
+            backgroundColor: Colors.green,
           ),
         );
       }
@@ -78,11 +98,12 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
       debugPrint('[CustomerForm._saveCustomer] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
-    setState(() => _isSaving = false);
   }
 
   @override
@@ -170,7 +191,9 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: _isSaving ? null : _deleteCustomer,
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                    ),
                     child: const Text('Delete Customer'),
                   ),
                 ),
@@ -208,16 +231,19 @@ class _CustomerFormPageState extends State<CustomerFormPage> {
     try {
       await _customerService.deleteCustomer(widget.customer!.id);
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.of(context).pop(null);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Customer deleted')),
+          const SnackBar(
+            content: Text('Customer deleted'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
       debugPrint('[CustomerForm._deleteCustomer] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {

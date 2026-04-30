@@ -18,7 +18,7 @@ import 'app_localizations_en.dart';
 /// `supportedLocales` list. For example:
 ///
 /// ```dart
-/// import 'l10n/app_localizations.dart';
+/// import 'gen_l10n/app_localizations.dart';
 ///
 /// return MaterialApp(
 ///   localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -1249,6 +1249,486 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Attention'**
   String get attention;
+
+  /// No description provided for @keyMetrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Key Metrics'**
+  String get keyMetrics;
+
+  /// No description provided for @topProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Products'**
+  String get topProducts;
+
+  /// No description provided for @topCustomers.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Customers'**
+  String get topCustomers;
+
+  /// No description provided for @dailyBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Breakdown'**
+  String get dailyBreakdown;
+
+  /// No description provided for @itemsSold.
+  ///
+  /// In en, this message translates to:
+  /// **'Items Sold'**
+  String get itemsSold;
+
+  /// No description provided for @avgOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg Order'**
+  String get avgOrder;
+
+  /// No description provided for @noProductData.
+  ///
+  /// In en, this message translates to:
+  /// **'No product data available'**
+  String get noProductData;
+
+  /// No description provided for @noCustomerData.
+  ///
+  /// In en, this message translates to:
+  /// **'No customer data available'**
+  String get noCustomerData;
+
+  /// No description provided for @noDailyBreakdown.
+  ///
+  /// In en, this message translates to:
+  /// **'No daily breakdown available'**
+  String get noDailyBreakdown;
+
+  /// No description provided for @actionableInsights.
+  ///
+  /// In en, this message translates to:
+  /// **'Actionable Insights'**
+  String get actionableInsights;
+
+  /// No description provided for @yourGoals.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Goals'**
+  String get yourGoals;
+
+  /// No description provided for @trackGoals.
+  ///
+  /// In en, this message translates to:
+  /// **'Track your progress and achieve your business targets'**
+  String get trackGoals;
+
+  /// No description provided for @noGoalsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No goals yet'**
+  String get noGoalsYet;
+
+  /// No description provided for @createFirstGoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Create your first goal to start tracking your performance'**
+  String get createFirstGoal;
+
+  /// No description provided for @createGoalBtn.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Goal'**
+  String get createGoalBtn;
+
+  /// No description provided for @goalCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Goal created successfully'**
+  String get goalCreated;
+
+  /// No description provided for @goalUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Goal updated successfully'**
+  String get goalUpdated;
+
+  /// No description provided for @goalDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Goal deleted'**
+  String get goalDeleted;
+
+  /// No description provided for @deleteGoal.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Goal'**
+  String get deleteGoal;
+
+  /// No description provided for @deleteGoalConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete'**
+  String get deleteGoalConfirm;
+
+  /// No description provided for @goalDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Goal Details'**
+  String get goalDetails;
+
+  /// No description provided for @description.
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get description;
+
+  /// No description provided for @target.
+  ///
+  /// In en, this message translates to:
+  /// **'Target'**
+  String get target;
+
+  /// No description provided for @current.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get current;
+
+  /// No description provided for @progress.
+  ///
+  /// In en, this message translates to:
+  /// **'Progress'**
+  String get progress;
+
+  /// No description provided for @dailyNeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Need'**
+  String get dailyNeed;
+
+  /// No description provided for @startDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Date'**
+  String get startDate;
+
+  /// No description provided for @endDate.
+  ///
+  /// In en, this message translates to:
+  /// **'End Date'**
+  String get endDate;
+
+  /// No description provided for @daysRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'days remaining'**
+  String get daysRemaining;
+
+  /// No description provided for @goalAchieved.
+  ///
+  /// In en, this message translates to:
+  /// **'Goal Achieved!'**
+  String get goalAchieved;
+
+  /// No description provided for @quantity.
+  ///
+  /// In en, this message translates to:
+  /// **'Qty'**
+  String get quantity;
+
+  /// No description provided for @billCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Bill created successfully'**
+  String get billCreated;
+
+  /// No description provided for @selectCustomerRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please select a customer'**
+  String get selectCustomerRequired;
+
+  /// No description provided for @addItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Item'**
+  String get addItem;
+
+  /// No description provided for @addAnotherItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Another Item'**
+  String get addAnotherItem;
+
+  /// No description provided for @productName.
+  ///
+  /// In en, this message translates to:
+  /// **'Product Name'**
+  String get productName;
+
+  /// No description provided for @unitPrice.
+  ///
+  /// In en, this message translates to:
+  /// **'Unit Price'**
+  String get unitPrice;
+
+  /// No description provided for @subtotalRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtotal is required'**
+  String get subtotalRequired;
+
+  /// No description provided for @subtotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtotal'**
+  String get subtotal;
+
+  /// No description provided for @discount.
+  ///
+  /// In en, this message translates to:
+  /// **'Discount'**
+  String get discount;
+
+  /// No description provided for @tax.
+  ///
+  /// In en, this message translates to:
+  /// **'Tax'**
+  String get tax;
+
+  /// No description provided for @shipping.
+  ///
+  /// In en, this message translates to:
+  /// **'Shipping'**
+  String get shipping;
+
+  /// No description provided for @total.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get total;
+
+  /// No description provided for @paymentMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Method'**
+  String get paymentMethod;
+
+  /// No description provided for @notes.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes'**
+  String get notes;
+
+  /// No description provided for @createBillBtn.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Bill'**
+  String get createBillBtn;
+
+  /// No description provided for @noBillsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No bills yet'**
+  String get noBillsYet;
+
+  /// No description provided for @noBillsForCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'No bills for this customer yet'**
+  String get noBillsForCustomer;
+
+  /// No description provided for @allBills.
+  ///
+  /// In en, this message translates to:
+  /// **'All Bills'**
+  String get allBills;
+
+  /// No description provided for @unpaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpaid'**
+  String get unpaid;
+
+  /// No description provided for @paid.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid'**
+  String get paid;
+
+  /// No description provided for @overdue.
+  ///
+  /// In en, this message translates to:
+  /// **'Overdue'**
+  String get overdue;
+
+  /// No description provided for @filterStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter by Status'**
+  String get filterStatus;
+
+  /// No description provided for @sortBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by'**
+  String get sortBy;
+
+  /// No description provided for @dateNewest.
+  ///
+  /// In en, this message translates to:
+  /// **'Date (Newest)'**
+  String get dateNewest;
+
+  /// No description provided for @dateOldest.
+  ///
+  /// In en, this message translates to:
+  /// **'Date (Oldest)'**
+  String get dateOldest;
+
+  /// No description provided for @amountHighest.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount (Highest)'**
+  String get amountHighest;
+
+  /// No description provided for @amountLowest.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount (Lowest)'**
+  String get amountLowest;
+
+  /// No description provided for @viewBills.
+  ///
+  /// In en, this message translates to:
+  /// **'View Bills'**
+  String get viewBills;
+
+  /// No description provided for @customerName.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer Name'**
+  String get customerName;
+
+  /// No description provided for @customerPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone'**
+  String get customerPhone;
+
+  /// No description provided for @customerAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Address'**
+  String get customerAddress;
+
+  /// No description provided for @customerType.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get customerType;
+
+  /// No description provided for @editCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Customer'**
+  String get editCustomer;
+
+  /// No description provided for @deleteCustomer.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Customer'**
+  String get deleteCustomer;
+
+  /// No description provided for @deleteCustomerConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete this customer?'**
+  String get deleteCustomerConfirm;
+
+  /// No description provided for @customerCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer created successfully'**
+  String get customerCreated;
+
+  /// No description provided for @customerUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer updated successfully'**
+  String get customerUpdated;
+
+  /// No description provided for @customerDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer deleted successfully'**
+  String get customerDeleted;
+
+  /// No description provided for @nameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Name is required'**
+  String get nameRequired;
+
+  /// No description provided for @phoneRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone is required'**
+  String get phoneRequired;
+
+  /// No description provided for @failedToCreateBill.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to create bill'**
+  String get failedToCreateBill;
+
+  /// No description provided for @failedToLoadCustomers.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load customers'**
+  String get failedToLoadCustomers;
+
+  /// No description provided for @searchCustomers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search customers'**
+  String get searchCustomers;
+
+  /// No description provided for @nameOrPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Name or phone'**
+  String get nameOrPhone;
+
+  /// No description provided for @gridView.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid View'**
+  String get gridView;
+
+  /// No description provided for @tableView.
+  ///
+  /// In en, this message translates to:
+  /// **'Table View'**
+  String get tableView;
+
+  /// No description provided for @expandAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand All'**
+  String get expandAll;
+
+  /// No description provided for @collapseAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse All'**
+  String get collapseAll;
+
+  /// No description provided for @customerBills.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer Bills'**
+  String get customerBills;
 }
 
 class _AppLocalizationsDelegate
