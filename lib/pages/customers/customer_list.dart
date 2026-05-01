@@ -11,6 +11,7 @@ import 'customer_detail.dart';
 import 'customer_form.dart';
 import 'bill_form.dart';
 import 'customer_bills_page.dart';
+import 'banned_customers_page.dart';
 
 enum CustomerViewMode { table, grid }
 
@@ -106,7 +107,20 @@ class _CustomerListPageState extends State<CustomerListPage> {
           ),
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () => _showSearch(),
+            onPressed: _showSearch,
+            tooltip: 'Search customers',
+          ),
+          IconButton(
+            icon: const Icon(Icons.block),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BannedCustomersPage(),
+                ),
+              ).then((_) => _loadCustomers());
+            },
+            tooltip: 'Banned customers',
           ),
         ],
       ),
@@ -425,80 +439,107 @@ Widget _buildGridView() {
     );
   }
 
-   void _openCustomerBills(Customer customer) {
-     Navigator.push(
-       context,
-       MaterialPageRoute(
-         builder: (context) => CustomerBillsPage(customer: customer),
-       ),
-     ).then((_) => _loadCustomers());
-   }
+  void _openCustomerBills(Customer customer) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CustomerBillsPage(customer: customer),
+      ),
+    ).then((_) => _loadCustomers());
+  }
 
-   Future<void> _deleteCustomerAndBills(Customer customer) async {
-     // Show confirmation dialog
-     final confirm = await showDialog<bool>(
-       context: context,
-       builder: (context) => AlertDialog(
-         title: const Text('Delete Customer'),
-         content: Text(
-           'Are you sure you want to delete "${customer.name}" and all their bills? This action cannot be undone.',
-         ),
-         actions: [
-           TextButton(
-             onPressed: () => Navigator.pop(context, false),
-             child: const Text('Cancel'),
-           ),
-           ElevatedButton(
-             onPressed: () => Navigator.pop(context, true),
-             style: ElevatedButton.styleFrom(
-               backgroundColor: Colors.red,
-             ),
-             child: const Text('Delete'),
-           ),
-         ],
-       ),
-     );
+  Future<void> _deleteCustomerAndBills(Customer customer) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: Text(
+          'Are you sure you want to delete "${customer.name}" and all their bills? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
 
-     if (confirm != true) return;
+    if (confirm != true) return;
 
-     // Set loading state
-     if (!mounted) return;
-     setState(() => _isLoading = true);
+    // Set loading state
+    if (!mounted) return;
+    setState(() => _isLoading = true);
 
-     try {
-       // Delete all bills for this customer first (this will restore product quantities)
-       final customerBills = _getCustomerOrders(customer.id);
-       for (final bill in customerBills) {
-         await _orderService.deleteOrder(bill.id);
-       }
+    try {
+      // Get all bills for this customer first (we need them for the ban list)
+      final customerBills = _getCustomerOrders(customer.id);
+      int deletedBills = 0;
+      int failedBills = 0;
 
-       // Delete the customer
-       await _customerService.deleteCustomer(customer.id);
+      // Delete bills (restore quantities) but keep them in ban list
+      for (final bill in customerBills) {
+        try {
+          final success = await _orderService.deleteOrder(bill.id, forceDelete: true, keepInBanList: true);
+          if (success) {
+            deletedBills++;
+          } else {
+            failedBills++;
+            debugPrint('[CustomerList._deleteCustomerAndBills] Failed to delete bill ${bill.id}');
+          }
+        } catch (e) {
+          failedBills++;
+          debugPrint('[CustomerList._deleteCustomerAndBills] Error deleting bill ${bill.id}: $e');
+        }
+      }
 
-       if (mounted) {
-         // Reload customers
-         await _loadCustomers();
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text('${customer.name} and their bills have been deleted'),
-             backgroundColor: Colors.green,
-           ),
-         );
-       }
-     } catch (e) {
-       debugPrint('[CustomerList._deleteCustomerAndBills] Error: $e');
-       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text('Error deleting customer: $e'),
-             backgroundColor: Colors.red,
-           ),
-         );
-       }
-     } finally {
-       if (mounted) setState(() => _isLoading = false);
-     }
-   }
+      // Ban the customer (move to ban list with bills instead of deleting)
+      await _customerService.banCustomer(customer.id, customerBills);
+
+      if (mounted) {
+        // Reload customers
+        await _loadCustomers();
+
+        String message = '${customer.name} has been deleted';
+        if (deletedBills > 0) {
+          message += ' ($deletedBills bills deleted';
+          if (failedBills > 0) {
+            message += ', $failedBills bills could not be deleted';
+          }
+          message += ')';
+        } else if (failedBills > 0) {
+          message += ' (warning: $failedBills bills could not be deleted)';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: failedBills > 0 ? Colors.orange : Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[CustomerList._deleteCustomerAndBills] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting customer: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   void _showSearch() {
     showSearch(

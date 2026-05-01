@@ -1,8 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/customers/customermodel.dart';
+import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/storage/customer_storage.dart';
 import 'package:aurora/storage/customer_vault_storage.dart';
+import 'package:aurora/storage/banned_customer_storage.dart';
 
 class CustomerService {
   static final CustomerService _instance = CustomerService._internal();
@@ -172,6 +174,79 @@ class CustomerService {
     } catch (e) {
       debugPrint('[CustomerService.deleteCustomer] Error: $e');
       rethrow;
+    }
+  }
+
+  Future<void> banCustomer(String customerId, List<Order> bills) async {
+    try {
+      final vault = await _getVault();
+      final customer = vault.getCustomer(customerId);
+      if (customer == null) {
+        debugPrint('[CustomerService.banCustomer] Customer not found: $customerId');
+        return;
+      }
+
+      final bannedStorage = await _getBannedStorage();
+      await bannedStorage.banCustomer(customerId, customer, bills);
+
+      await Supabase.instance.client
+          .from('customers')
+          .delete()
+          .eq('id', customerId);
+      await CustomerStorage.deleteCustomer(customerId);
+      await vault.deleteCustomer(customerId);
+
+      debugPrint('[CustomerService.banCustomer] Customer $customerId banned with ${bills.length} bills');
+    } catch (e) {
+      debugPrint('[CustomerService.banCustomer] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> isCustomerBanned(String customerId) async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      return await bannedStorage.isCustomerBanned(customerId);
+    } catch (e) {
+      debugPrint('[CustomerService.isCustomerBanned] Error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Customer>> getBannedCustomers() async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      return await bannedStorage.getAllBannedCustomers();
+    } catch (e) {
+      debugPrint('[CustomerService.getBannedCustomers] Error: $e');
+      return [];
+    }
+  }
+
+  BannedCustomerStorage? _bannedStorage;
+  Future<BannedCustomerStorage> _getBannedStorage() async {
+    _bannedStorage ??= await BannedCustomerStorage.getInstance();
+    return _bannedStorage!;
+  }
+
+  Future<void> unbanCustomer(String customerId) async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      await bannedStorage.unbanCustomer(customerId);
+      debugPrint('[CustomerService.unbanCustomer] Customer $customerId unbanned');
+    } catch (e) {
+      debugPrint('[CustomerService.unbanCustomer] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Order>> getBannedCustomerBills(String customerId) async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      return bannedStorage.getBannedCustomerBills(customerId);
+    } catch (e) {
+      debugPrint('[CustomerService.getBannedCustomerBills] Error: $e');
+      return [];
     }
   }
 

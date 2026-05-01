@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/theme_provider.dart';
 import '../locale/locale_provider.dart';
@@ -41,10 +40,453 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _toggleBiometric(BuildContext context, bool value) async {
-    Provider.of<AppSettingsProvider>(
-      context,
-      listen: false,
-    ).setBiometricLock(value);
+    final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+
+    debugPrint('[Settings] _toggleBiometric called with value: $value');
+
+    await settings.setBiometricLock(value);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value
+                ? 'Biometric lock enabled! Lock app and reopen to test.'
+                : 'Biometric lock disabled',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  void _showBiometricInfo(BuildContext context, String status) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.fingerprint, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Biometric Lock'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your device does not support biometric authentication. Here are possible reasons:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            _buildInfoRow(Icons.phone_android, 'Device not supported'),
+            _buildInfoRow(Icons.fingerprint, 'No biometrics enrolled'),
+            _buildInfoRow(Icons.lock, 'Security not configured'),
+            const SizedBox(height: 16),
+            Text(
+              'To fix: Go to your phone Settings → Security → Set up fingerprint or face ID',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+);
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Text(text, style: const TextStyle(fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecurityTile(BuildContext context) {
+    final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+    final isSecurityEnabled = settings.isSecurityEnabled;
+
+    return Card(
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isSecurityEnabled
+                ? Colors.green.withValues(alpha: 0.1)
+                : Colors.grey.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            isSecurityEnabled ? Icons.lock : Icons.lock_open,
+            color: isSecurityEnabled ? Colors.green : Colors.grey,
+          ),
+        ),
+        title: Text(
+          isSecurityEnabled ? 'Security Enabled' : 'Enable Security',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          isSecurityEnabled
+              ? 'PIN/Fingerprint active'
+              : 'Set up PIN and biometric to secure app',
+        ),
+        trailing: Icon(
+          isSecurityEnabled ? Icons.check_circle : Icons.arrow_forward_ios,
+          color: isSecurityEnabled ? Colors.green : Colors.grey,
+          size: 20,
+        ),
+        onTap: () => _showSecuritySetupDialog(context),
+      ),
+    );
+  }
+
+  void _showSecuritySetupDialog(BuildContext context) {
+    final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+
+    if (settings.isSecurityEnabled) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Security Settings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.lock_reset),
+                title: const Text('Change Password'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showPasswordSetupDialog(context, isChanging: true);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.fingerprint),
+                title: const Text('Biometric Lock'),
+                trailing: Switch(
+                  value: settings.biometricLock,
+                  onChanged: (v) {
+                    Navigator.pop(context);
+                    _toggleBiometric(context, v);
+                  },
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.lock_open, color: Colors.red),
+                title: const Text(
+                  'Disable Security',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _disableSecurity(context);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _showPasswordSetupDialog(context);
+    }
+  }
+
+  void _showPasswordSetupDialog(
+    BuildContext context, {
+    bool isChanging = false,
+  }) {
+    String? selectedType;
+    final passwordController = TextEditingController();
+    final confirmController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(isChanging ? 'Change Password' : 'Set Up Security'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isChanging) ...[
+                    const Text(
+                      'Choose password type:',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 12),
+                    RadioListTile<String>(
+                      title: const Text('PIN (4-6 digits)'),
+                      value: 'pin',
+                      groupValue: selectedType,
+                      onChanged: (v) => setState(() => selectedType = v),
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Password'),
+                      value: 'password',
+                      groupValue: selectedType,
+                      onChanged: (v) => setState(() => selectedType = v),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: isChanging ? 'New Password' : 'Enter Password',
+                      hintText: selectedType == 'pin'
+                          ? '4-6 digits'
+                          : 'Enter password',
+                      border: const OutlineInputBorder(),
+                    ),
+                    keyboardType: selectedType == 'pin'
+                        ? TextInputType.number
+                        : TextInputType.text,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm Password',
+                      hintText: 'Re-enter password',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: selectedType == 'pin'
+                        ? TextInputType.number
+                        : TextInputType.text,
+                  ),
+                  const SizedBox(height: 16),
+                  if (!isChanging)
+                    const Text(
+                      '💡 After setting password, you can also enable fingerprint lock',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (selectedType == null && !isChanging) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please select password type'),
+                      ),
+                    );
+                    return;
+                  }
+                  if (passwordController.text.isEmpty ||
+                      confirmController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter both passwords'),
+                      ),
+                    );
+                    return;
+                  }
+                  if (passwordController.text != confirmController.text) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Passwords do not match')),
+                    );
+                    return;
+                  }
+                  if (selectedType == 'pin' &&
+                      passwordController.text.length < 4) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('PIN must be at least 4 digits'),
+                      ),
+                    );
+                    return;
+                  }
+
+                  // Save password
+                  final settings = Provider.of<AppSettingsProvider>(
+                    dialogContext,
+                    listen: false,
+                  );
+                  await settings.setAppPassword(passwordController.text);
+
+                  Navigator.pop(dialogContext);
+
+                  // Ask for biometric
+                  _askForBiometricSetup(context);
+                },
+                child: Text(isChanging ? 'Save' : 'Next'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _askForBiometricSetup(BuildContext context) async {
+    final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.fingerprint, color: Colors.indigo),
+            SizedBox(width: 8),
+            Text('Enable Fingerprint?'),
+          ],
+        ),
+        content: const Text(
+          'Would you like to also enable fingerprint unlock? '
+          'This will allow you to quickly unlock the app using your fingerprint.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Skip'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Enable'),
+          ),
+        ],
+      ),
+    );
+
+if (confirm == true && context.mounted) {
+      // First, try to authenticate with biometric - this will trigger the system fingerprint prompt
+      // The user can then enroll their fingerprint if not already done
+      final biometricSuccess = await settings.authenticateBiometric();
+      
+      if (!biometricSuccess) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Fingerprint not set up. Please enroll in phone settings.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+
+      // If biometric auth succeeded, enable biometric lock
+      await settings.setBiometricLock(true);
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Security enabled successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Security enabled with PIN/Password!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _disableSecurity(BuildContext context) async {
+    final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+
+    // First verify identity
+    final verifyPassword = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Verify Your Identity'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Enter your PIN/Password to disable security:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'PIN/Password',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Disable'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (verifyPassword == null || verifyPassword.isEmpty) return;
+
+    // Verify password
+    final isValid = await settings.authenticatePassword(verifyPassword);
+    if (!isValid) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Incorrect PIN/Password'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Now disable
+    await settings.setBiometricLock(false);
+    await settings.setAppPassword('');
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🔒 Security disabled'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   @override
@@ -104,14 +546,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const SizedBox(height: 24),
           _buildSectionHeader(context, localizations.security),
-          _buildSwitchTile(
-            icon: Icons.fingerprint_outlined,
-            iconColor: Colors.indigo,
-            title: localizations.biometricLock,
-            subtitle: localizations.requireFingerprint,
-            value: Provider.of<AppSettingsProvider>(context).biometricLock,
-            onChanged: (v) => _toggleBiometric(context, v),
-          ),
+          _buildSecurityTile(context),
           const SizedBox(height: 8),
           _buildSettingTile(
             icon: Icons.key_outlined,
@@ -145,8 +580,8 @@ class _SettingsPageState extends State<SettingsPage> {
             icon: Icons.info_outline,
             iconColor: Colors.grey,
             title: localizations.appVersion,
-            subtitle: 'Aurora v1.0.0',
-            onTap: () {},
+            subtitle: 'Aurora v0.1.0',
+            onTap: () => Navigator.of(context).pushNamed('/about'),
           ),
           const SizedBox(height: 8),
           _buildSettingTile(
@@ -154,7 +589,15 @@ class _SettingsPageState extends State<SettingsPage> {
             iconColor: Colors.green,
             title: localizations.privacyPolicy,
             subtitle: localizations.howWeHandleData,
-            onTap: () => _showComingSoon(context, localizations.privacyPolicy),
+            onTap: () => Navigator.of(context).pushNamed('/privacy-policy'),
+          ),
+          const SizedBox(height: 8),
+          _buildSettingTile(
+            icon: Icons.description_outlined,
+            iconColor: Colors.blue,
+            title: 'Terms of Service',
+            subtitle: 'User agreement and conditions',
+            onTap: () => Navigator.of(context).pushNamed('/terms-of-service'),
           ),
           const SizedBox(height: 8),
           _buildSettingTile(

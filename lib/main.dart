@@ -21,6 +21,9 @@ import 'package:aurora/pages/home.dart';
 import 'package:aurora/pages/customers/customer_list.dart';
 import 'package:aurora/pages/profile/profile.dart';
 import 'package:aurora/pages/settings.dart';
+import 'package:aurora/pages/about_page.dart';
+import 'package:aurora/pages/privacy_policy_page.dart';
+import 'package:aurora/pages/terms_of_service_page.dart';
 import 'package:aurora/theme/theme_provider.dart';
 import 'package:aurora/locale/locale_provider.dart';
 import 'package:aurora/gen_l10n/app_localizations.dart';
@@ -131,6 +134,9 @@ class AuroraApp extends StatelessWidget {
         '/connect': (context) => const ConnectViaTokenPage(),
         '/notifications': (context) => const NotificationListPage(),
         '/connections': (context) => const ConnectionsListPage(),
+        '/about': (context) => const AboutPage(),
+        '/privacy-policy': (context) => const PrivacyPolicyPage(),
+        '/terms-of-service': (context) => const TermsOfServicePage(),
       },
       home: const AppLockScreen(child: SplashScreen()),
     );

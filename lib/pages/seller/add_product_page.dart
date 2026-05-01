@@ -236,7 +236,7 @@ class _AddProductPageState extends State<AddProductPage> {
     _asinController.text = p.asin ?? '';
 
     // Status & condition
-    if (p.status.isEmpty) {
+    if (p.status.isNotEmpty) {
       _status = ProductStatus.values.firstWhere(
         (s) => s.name == p.status,
         orElse: () => ProductStatus.draft,

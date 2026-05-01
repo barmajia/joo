@@ -197,17 +197,28 @@ class _CustomerBillsPageState extends State<CustomerBillsPage> {
 
     try {
       // Delete the bill (this will restore product quantities via OrderService.deleteOrder)
-      await _orderService.deleteOrder(order.id);
+      final success = await _orderService.deleteOrder(order.id);
 
-      if (mounted) {
-        // Reload bills
-        await _loadBills();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Bill deleted and product quantities restored'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (success) {
+        if (mounted) {
+          // Reload bills
+          await _loadBills();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Bill deleted and product quantities restored'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete bill: Bill not found'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('[CustomerBillsPage._deleteBill] Error: $e');

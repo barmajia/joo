@@ -245,7 +245,8 @@ class OrderService {
     }
   }
 
-  Future<bool> deleteOrder(String orderId) async {
+  Future<bool> deleteOrder(String orderId, {bool forceDelete = false, bool keepInBanList = false}) async {
+    debugPrint('[OrderService.deleteOrder] Attempting to delete order: $orderId (force: $forceDelete, keepInBanList: $keepInBanList)');
     Order? order = await fetchOrderById(orderId);
 
     if (order == null) {
@@ -253,11 +254,19 @@ class OrderService {
       return false;
     }
 
-    if (!order.isDeletable) {
+    debugPrint('[OrderService.deleteOrder] Order found: ${order.id}, isDeletable: ${order.isDeletable}');
+
+    if (!order.isDeletable && !forceDelete) {
       debugPrint(
-        '[OrderService.deleteOrder] Order $orderId is not deletable yet',
+        '[OrderService.deleteOrder] Order $orderId is not deletable (deadline: ${order.deletionDeadline})',
       );
-      throw Exception('Cannot delete this bill before the deletion deadline');
+      throw Exception('Cannot delete this bill after the deletion deadline');
+    }
+
+    if (forceDelete && !order.isDeletable) {
+      debugPrint(
+        '[OrderService.deleteOrder] Force deleting order $orderId despite deadline',
+      );
     }
 
     // Restore product quantities before deleting
@@ -281,6 +290,29 @@ class OrderService {
         }
       } catch (e) {
         debugPrint('[OrderService.deleteOrder] Error restoring quantities: $e');
+      }
+    }
+
+    // If keeping in ban list, only delete from active storage but keep in banned storage
+    if (keepInBanList) {
+      try {
+        await _deleteOrderItems(orderId);
+        await Supabase.instance.client.from('orders').delete().eq('id', orderId);
+
+        await OrderStorage.deleteOrder(orderId);
+        final vault = await _getVault();
+        await vault.deleteBill(orderId);
+
+        // Remove from customer bills index (active bills)
+        final customerBills = vault.getCustomerBills(order.userId);
+        customerBills.removeWhere((o) => o.id == orderId);
+        await vault.saveCustomerBills(order.userId, customerBills);
+
+        debugPrint('[OrderService.deleteOrder] Order $orderId deleted from active storage, kept in ban list');
+        return true;
+      } catch (e) {
+        debugPrint('[OrderService.deleteOrder] Error deleting order with keepInBanList: $e');
+        rethrow;
       }
     }
 

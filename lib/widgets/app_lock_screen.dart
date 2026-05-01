@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:aurora/gen_l10n/app_localizations.dart';
 import '../providers/app_settings_provider.dart';
@@ -11,7 +12,7 @@ class AppLockScreen extends StatefulWidget {
   State<AppLockScreen> createState() => _AppLockScreenState();
 }
 
-class _AppLockScreenState extends State<AppLockScreen> {
+class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserver {
   final List<TextEditingController> _pinControllers = List.generate(
     6,
     (_) => TextEditingController(),
@@ -20,6 +21,13 @@ class _AppLockScreenState extends State<AppLockScreen> {
   bool _isLoading = false;
   bool _isError = false;
   bool _hasChecked = false;
+  bool _isAuthenticating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void didChangeDependencies() {
@@ -32,27 +40,112 @@ class _AppLockScreenState extends State<AppLockScreen> {
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused) {
+      _lockApp();
+    } else if (state == AppLifecycleState.resumed) {
+      _checkLockState();
+    }
+  }
+
+  void _lockApp() {
+    final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+    if (settings.isSecurityEnabled && settings.isUnlocked) {
+      settings.lockApp();
+      if (mounted) setState(() {});
+    }
+  }
+
   Future<void> _checkLockState() async {
     final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+    
+    debugPrint('[AppLockScreen] isSecurityEnabled: ${settings.isSecurityEnabled}');
+    debugPrint('[AppLockScreen] isUnlocked: ${settings.isUnlocked}');
+    debugPrint('[AppLockScreen] biometricLock: ${settings.biometricLock}');
 
     if (!settings.isSecurityEnabled) {
+      debugPrint('[AppLockScreen] No security enabled, unlocking...');
       settings.setUnlocked();
       return;
     }
 
-    if (settings.biometricLock) {
-      final success = await settings.authenticateBiometric();
-      if (success) {
-        settings.setUnlocked();
-        return;
-      }
+    if (settings.isUnlocked) {
+      debugPrint('[AppLockScreen] Already unlocked, returning...');
+      return;
     }
 
+    // Auto-authenticate with biometric if enabled
+    if (settings.biometricLock) {
+      debugPrint('[AppLockScreen] Biometric enabled, trying to authenticate...');
+      // Give a small delay for the UI to be ready
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _authenticateWithBiometric();
+      return;
+    }
+
+    // If password is enabled, show the PIN entry
+    debugPrint('[AppLockScreen] Showing PIN entry...');
     if (mounted) setState(() {});
+  }
+
+  Future<void> _authenticateWithBiometric() async {
+    if (_isAuthenticating) return;
+    setState(() => _isAuthenticating = true);
+
+    try {
+      final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+      final success = await settings.authenticateBiometric();
+      if (success && mounted) {
+        settings.setUnlocked();
+        HapticFeedback.lightImpact();
+      }
+    } finally {
+      if (mounted) setState(() => _isAuthenticating = false);
+    }
+  }
+
+  void _goToLogin(BuildContext context) async {
+    final settings = Provider.of<AppSettingsProvider>(context, listen: false);
+    
+    // Show confirmation
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Go to Login'),
+        content: const Text(
+          'This will clear your session and return to the login page. '
+          'You will need to log in again to access the app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    // Disable security locks temporarily and clear session
+    settings.setBiometricLock(false);
+    settings.lockApp();
+    
+    // Navigate to welcome/login page
+    if (mounted) {
+      Navigator.of(context).pushNamedAndRemoveUntil('/welcome', (route) => false);
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (var c in _pinControllers) c.dispose();
     for (var n in _pinFocusNodes) n.dispose();
     super.dispose();
@@ -195,6 +288,65 @@ class _AppLockScreenState extends State<AppLockScreen> {
                         ),
                       ],
                       const SizedBox(height: 32),
+                      // Always show biometric option if enabled
+                      if (settings.biometricLock) ...[
+                        Container(
+                          width: double.infinity,
+                          height: 56,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          child: ElevatedButton.icon(
+                            onPressed: _isAuthenticating
+                                ? null
+                                : _authenticateWithBiometric,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: _isAuthenticating
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(Icons.fingerprint, size: 24),
+                            label: Text(
+                              _isAuthenticating
+                                  ? 'Authenticating...'
+                                  : 'Unlock with Biometric',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            const Expanded(child: Divider()),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Text(
+                                'OR',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const Expanded(child: Divider()),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       SizedBox(
                         width: double.infinity,
                         height: 50,
@@ -217,16 +369,17 @@ class _AppLockScreenState extends State<AppLockScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      if (settings.biometricLock)
-                        TextButton.icon(
-                          onPressed: () async {
-                            final success = await settings
-                                .authenticateBiometric();
-                            if (success && mounted) settings.setUnlocked();
-                          },
-                          icon: const Icon(Icons.fingerprint),
-                          label: Text(localizations.useBiometric),
+                      // Forgot password - go back to login
+                      TextButton(
+                        onPressed: () => _goToLogin(context),
+                        child: Text(
+                          'Forgot Password? Login Again',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
                         ),
+                      ),
                     ],
                   ),
                 ),
