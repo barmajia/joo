@@ -29,7 +29,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return 'Seller';
       case AccountType.factory:
         return 'Factory';
-      case AccountType.customser:
+      case AccountType.customer:
         return 'Customer';
       case AccountType.middleman:
         return 'Middle Man';

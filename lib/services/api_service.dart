@@ -167,6 +167,148 @@ class ApiService extends ChangeNotifier {
     }
   }
 
+  // Authentication methods
+  Future<Map<String, dynamic>> signIn(String email, String password) async {
+    try {
+      final response = await Supabase.instance.client.auth
+          .signInWithPassword(email: email, password: password);
+      
+      if (response.user != null) {
+        return {'user': response.user!.toJson(), 'session': response.session?.toJson()};
+      }
+      return {'error': 'Invalid credentials'};
+    } catch (e) {
+      debugPrint('[ApiService.signIn] Error: $e');
+      return {'error': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> signUp(
+    String email, 
+    String password, {
+    String? fullName,
+    String? phone,
+    String accountType = 'customer',
+  }) async {
+    try {
+      final response = await Supabase.instance.client.auth
+          .signUp(email: email, password: password);
+      
+      if (response.user != null) {
+        // Update user metadata with additional info
+        if (fullName != null || phone != null) {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(
+              data: {
+                'full_name': fullName,
+                'phone': phone,
+                'account_type': accountType,
+              },
+            ),
+          );
+        }
+        return {'user': response.user!.toJson()};
+      }
+      return {'error': 'Signup failed'};
+    } catch (e) {
+      debugPrint('[ApiService.signUp] Error: $e');
+      return {'error': e.toString()};
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      debugPrint('[ApiService.signOut] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getUserProfile(String userId) async {
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      debugPrint('[ApiService.getUserProfile] Error: $e');
+      return null;
+    }
+  }
+
+  Future<void> updateUserProfile(String userId, Map<String, dynamic> data) async {
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .update(data)
+          .eq('id', userId);
+    } catch (e) {
+      debugPrint('[ApiService.updateUserProfile] Error: $e');
+      rethrow;
+    }
+  }
+
+  // Customer profile methods
+  Future<Map<String, dynamic>> createCustomerProfile(Map<String, dynamic> data) async {
+    try {
+      final response = await Supabase.instance.client
+          .from('customers')
+          .insert(data)
+          .select()
+          .single();
+      return {'success': true, 'customer': response};
+    } catch (e) {
+      debugPrint('[ApiService.createCustomerProfile] Error: $e');
+      return {'error': e.toString()};
+    }
+  }
+
+  Future<List<dynamic>?> getCustomerOrders(String customerId) async {
+    try {
+      final response = await Supabase.instance.client
+          .from('orders')
+          .select('''
+            id,
+            status,
+            total_amount,
+            created_at,
+            seller_id,
+            delivery_address,
+            payment_method,
+            sellers!inner(full_name)
+          ''')
+          .eq('customer_id', customerId)
+          .order('created_at', ascending: false);
+      
+      // Transform response to include seller_name and items_count
+      return response.map((order) {
+        return {
+          ...order,
+          'seller_name': order['sellers']?['full_name'] ?? 'Unknown',
+          'items_count': 1, // Should be calculated from order_items table
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('[ApiService.getCustomerOrders] Error: $e');
+      return null;
+    }
+  }
+
+  Future<void> updateOrderStatus(String orderId, String status) async {
+    try {
+      await Supabase.instance.client
+          .from('orders')
+          .update({'status': status})
+          .eq('id', orderId);
+    } catch (e) {
+      debugPrint('[ApiService.updateOrderStatus] Error: $e');
+      rethrow;
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();

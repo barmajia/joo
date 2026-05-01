@@ -1,51 +1,57 @@
-class FactoryProfile {
-  final String userId;
-  final String email;
-  final String fullName;
+import 'package:aurora/models/base_profile.dart';
+import 'package:aurora/users/account_type.dart';
+
+class FactoryProfile extends BaseProfile {
   final String? companyName;
-  final String? phone;
-  final String? location;
-  final String currency;
-  final String accountType;
-  final bool isVerified;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
   final Map<String, dynamic>? capacityInfo;
   final String? businessLicenseUrl;
-  final bool isFactory;
-  final double? latitude;
   final String? locationText;
-  final double? longitude;
   final int? productionCapacity;
   final String? specialization;
-  final String? websiteUrl;
   final Map<String, dynamic>? settings;
   final List<dynamic>? customers;
+  final double? latitude;
+  final double? longitude;
+  final String? websiteUrl;
 
   FactoryProfile({
-    required this.userId,
-    required this.email,
-    required this.fullName,
+    required String userId,
+    required String email,
+    required String fullName,
     this.companyName,
-    this.phone,
-    this.location,
-    this.currency = 'USD',
-    this.accountType = 'factory',
-    this.isVerified = false,
-    required this.createdAt,
-    this.updatedAt,
+    String? phone,
+    String? location,
+    String currency = 'USD',
+    bool isVerified = false,
+    required DateTime createdAt,
+    DateTime? updatedAt,
     this.capacityInfo,
     this.businessLicenseUrl,
-    this.isFactory = true,
-    this.latitude,
     this.locationText,
-    this.longitude,
     this.productionCapacity,
     this.specialization,
-    this.websiteUrl,
     this.settings,
     this.customers,
-  });
+    double? latitude,
+    double? longitude,
+    String? websiteUrl,
+    Map<String, dynamic>? metadata,
+  }) : super(
+          userId: userId,
+          email: email,
+          fullName: fullName,
+          phone: phone,
+          location: location,
+          currency: currency,
+          accountType: AccountType.factory,
+          isVerified: isVerified,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          latitude: latitude,
+          longitude: longitude,
+          websiteUrl: websiteUrl,
+          metadata: metadata,
+        );
 
   factory FactoryProfile.fromMap(Map<String, dynamic> map) {
     return FactoryProfile(
@@ -56,46 +62,36 @@ class FactoryProfile {
       phone: map['phone'],
       location: map['location'],
       currency: map['currency'] ?? 'USD',
-      accountType: map['account_type'] ?? 'factory',
       isVerified: map['is_verified'] ?? false,
-      createdAt: map['created_at'] != null ? DateTime.parse(map['created_at']) : DateTime.now(),
-      updatedAt: map['updated_at'] != null ? DateTime.parse(map['updated_at']) : null,
+      createdAt: map['created_at'] != null 
+          ? DateTime.parse(map['created_at']) 
+          : DateTime.now(),
+      updatedAt: map['updated_at'] != null 
+          ? DateTime.parse(map['updated_at']) 
+          : null,
       capacityInfo: map['capacity_info'],
       businessLicenseUrl: map['business_license_url'],
-      isFactory: map['is_factory'] ?? true,
-      latitude: map['latitude']?.toDouble(),
       locationText: map['location_text'],
+      latitude: map['latitude']?.toDouble(),
       longitude: map['longitude']?.toDouble(),
+      websiteUrl: map['website_url'],
       productionCapacity: map['production_capacity'],
       specialization: map['specialization'],
-      websiteUrl: map['website_url'],
       settings: map['settings'],
       customers: map['customers'],
     );
   }
 
+  @override
   Map<String, dynamic> toMap() {
     return {
-      'user_id': userId,
-      'email': email,
-      'full_name': fullName,
+      ...toBaseMap(),
       'company_name': companyName,
-      'phone': phone,
-      'location': location,
-      'currency': currency,
-      'account_type': accountType,
-      'is_verified': isVerified,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
       'capacity_info': capacityInfo,
       'business_license_url': businessLicenseUrl,
-      'is_factory': isFactory,
-      'latitude': latitude,
       'location_text': locationText,
-      'longitude': longitude,
       'production_capacity': productionCapacity,
       'specialization': specialization,
-      'website_url': websiteUrl,
       'settings': settings,
       'customers': customers,
     };
@@ -103,5 +99,67 @@ class FactoryProfile {
 
   Map<String, dynamic> toJson() => toMap();
 
-  factory FactoryProfile.fromJson(Map<String, dynamic> json) => FactoryProfile.fromMap(json);
+  factory FactoryProfile.fromJson(Map<String, dynamic> json) => 
+      FactoryProfile.fromMap(json);
+
+  @override
+  FactoryProfile copyWith({
+    String? userId,
+    String? email,
+    String? fullName,
+    String? companyName,
+    String? phone,
+    String? location,
+    String? currency,
+    bool? isVerified,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Map<String, dynamic>? capacityInfo,
+    String? businessLicenseUrl,
+    String? locationText,
+    int? productionCapacity,
+    String? specialization,
+    Map<String, dynamic>? settings,
+    List<dynamic>? customers,
+    double? latitude,
+    double? longitude,
+    String? websiteUrl,
+    Map<String, dynamic>? metadata,
+  }) {
+    return FactoryProfile(
+      userId: userId ?? this.userId,
+      email: email ?? this.email,
+      fullName: fullName ?? this.fullName,
+      companyName: companyName ?? this.companyName,
+      phone: phone ?? this.phone,
+      location: location ?? this.location,
+      currency: currency ?? this.currency,
+      isVerified: isVerified ?? this.isVerified,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      capacityInfo: capacityInfo ?? this.capacityInfo,
+      businessLicenseUrl: businessLicenseUrl ?? this.businessLicenseUrl,
+      locationText: locationText ?? this.locationText,
+      productionCapacity: productionCapacity ?? this.productionCapacity,
+      specialization: specialization ?? this.specialization,
+      settings: settings ?? this.settings,
+      customers: customers ?? this.customers,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      websiteUrl: websiteUrl ?? this.websiteUrl,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+
+  /// Get factory display name
+  String get displayName => companyName ?? fullName;
+
+  /// Check if factory is verified and ready for orders
+  bool get isReadyForOrders => isVerified && productionCapacity != null;
+
+  /// Get lead time from settings
+  int get leadTimeDays => settings?['lead_time_days'] as int? ?? 7;
+
+  /// Check if factory accepts rush orders
+  bool get acceptsRushOrders => settings?['accepts_rush_orders'] as bool? ?? false;
 }
