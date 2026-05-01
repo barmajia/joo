@@ -21,6 +21,11 @@ import 'package:aurora/locale/locale_provider.dart';
 import 'package:aurora/l10n/app_localizations.dart';
 import 'package:aurora/supabase/supabase_auth.dart';
 import 'package:aurora/users/account_type.dart';
+import 'package:aurora/pages/auth/customer_login_page.dart';
+import 'package:aurora/pages/auth/customer_signup_page.dart';
+import 'package:aurora/pages/customers/customer_home_page.dart';
+import 'package:aurora/pages/orders/customer_orders_page.dart';
+import 'package:aurora/users/user_provider.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: '.env');
@@ -43,6 +48,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
         ChangeNotifierProvider(create: (_) => UserStorage()),
         ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: const AuroraApp(),
     ),
@@ -86,6 +92,11 @@ class AuroraApp extends StatelessWidget {
         '/home': (context) => const Homepapge(),
         '/customers': (context) => const CustomerListPage(),
         '/analytics': (context) => const AnalysisPage(),
+        // Customer routes
+        '/customer-login': (context) => const CustomerLoginPage(),
+        '/customer-signup': (context) => const CustomerSignupPage(),
+        '/customer-home': (context) => const CustomerHomePage(),
+        '/customer-orders': (context) => const CustomerOrdersPage(),
       },
       home: const SplashScreen(),
     );
@@ -123,6 +134,15 @@ class _SplashScreenState extends State<SplashScreen> {
     final userStorage = Provider.of<UserStorage>(context, listen: false);
 
     try {
+      // Handle customer account type
+      if (accountType == 'customer') {
+        await userStorage.loadUser(AccountType.customer);
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/customer-home');
+        }
+        return;
+      }
+      
       await userStorage.loadUser(
         accountType == 'factory' ? AccountType.factory : AccountType.seller,
       );

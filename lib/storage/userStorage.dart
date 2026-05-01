@@ -14,6 +14,16 @@ class UserStorage extends ChangeNotifier {
   String? get error => _error;
   bool get isLoggedIn => _currentUser != null && _currentUser!.id.isNotEmpty;
 
+  Map<String, dynamic>? getUser() {
+    return _currentUser?.toJson();
+  }
+
+  Future<void> clearUser() async {
+    _currentUser = Users.zero();
+    await Storage.clearUser();
+    notifyListeners();
+  }
+
   Future<void> loadUser(AccountType accountType) async {
     _isLoading = true;
     _error = null;

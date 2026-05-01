@@ -23,6 +23,8 @@ class ThemeProvider extends ChangeNotifier {
   ThemeStyle get currentTheme => _currentTheme;
   bool get useDynamicColors => _useDynamicColors;
   double get brightnessLevel => _brightnessLevel;
+  
+  ThemeData get currentThemeData => theme;
 
   ThemeProvider() {
     _loadThemePreference();

@@ -1,4 +1,4 @@
-enum AccountType { seller, factory, customser, middleman }
+enum AccountType { seller, factory, customer, middleman }
 
 String asString(AccountType accountType) {
   switch (accountType) {
@@ -6,8 +6,8 @@ String asString(AccountType accountType) {
       return 'seller';
     case AccountType.factory:
       return 'factory';
-    case AccountType.customser:
-      return 'customser';
+    case AccountType.customer:
+      return 'customer';
     case AccountType.middleman:
       return 'middleman';
   }
