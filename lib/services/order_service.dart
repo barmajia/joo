@@ -80,6 +80,19 @@ class OrderService {
   }
 
   Future<Order?> fetchOrderById(String orderId) async {
+    // Try local storage first (BillVaultStorage)
+    try {
+      final vault = await _getVault();
+      final localBill = vault.getBill(orderId);
+      if (localBill != null) {
+        debugPrint('[OrderService.fetchOrderById] Found order $orderId in local vault');
+        return localBill;
+      }
+    } catch (e) {
+      debugPrint('[OrderService.fetchOrderById] Local vault error: $e');
+    }
+
+    // Try Supabase
     try {
       final response = await Supabase.instance.client
           .from('orders')
@@ -97,10 +110,11 @@ class OrderService {
         return Order.fromMap(orderMap);
       }
     } catch (e) {
-      debugPrint('[OrderService.fetchOrderById] Error: $e');
-      return await OrderStorage.getOrderById(orderId);
+      debugPrint('[OrderService.fetchOrderById] Supabase error: $e');
     }
-    return null;
+
+    // Fallback to OrderStorage
+    return await OrderStorage.getOrderById(orderId);
   }
 
   Future<Order?> createOrder(Order order) async {

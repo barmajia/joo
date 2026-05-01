@@ -5,6 +5,8 @@ import 'package:aurora/pages/chat/chat_list_page.dart';
 import 'package:aurora/pages/connections/connect_via_token_page.dart';
 import 'package:aurora/pages/notifications/notification_list_page.dart';
 import 'package:aurora/pages/connections/connections_list_page.dart';
+import 'package:aurora/pages/auth/factories/signup.dart';
+import 'package:aurora/pages/auth/sellers/signup.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
@@ -114,20 +116,22 @@ class AuroraApp extends StatelessWidget {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: localeProvider.locale,
-       routes: {
-         '/settings': (context) => const SettingsPage(),
-         '/profile': (context) => const ProfilePage(),
-         '/seller_product': (context) => const SellerProductsPage(),
-         '/seller_add_product': (context) => const AddProductPage(),
-         '/welcome': (context) => const WelcomePage(),
-         '/home': (context) => const Homepapge(),
-         '/customers': (context) => const CustomerListPage(),
-         '/analytics': (context) => const AnalysisPage(),
-         '/chat': (context) => const ChatListPage(),
-         '/connect': (context) => const ConnectViaTokenPage(),
-         '/notifications': (context) => const NotificationListPage(),
-         '/connections': (context) => const ConnectionsListPage(),
-       },
+      routes: {
+        '/settings': (context) => const SettingsPage(),
+        '/profile': (context) => const ProfilePage(),
+        '/seller_product': (context) => const SellerProductsPage(),
+        '/seller_add_product': (context) => const AddProductPage(),
+        '/welcome': (context) => const WelcomePage(),
+        '/seller_signup': (context) => const SellerSignupPage(),
+        '/factory_signup': (context) => const FactorySignupPage(),
+        '/home': (context) => const Homepapge(),
+        '/customers': (context) => const CustomerListPage(),
+        '/analytics': (context) => const AnalysisPage(),
+        '/chat': (context) => const ChatListPage(),
+        '/connect': (context) => const ConnectViaTokenPage(),
+        '/notifications': (context) => const NotificationListPage(),
+        '/connections': (context) => const ConnectionsListPage(),
+      },
       home: const AppLockScreen(child: SplashScreen()),
     );
   }
@@ -159,18 +163,46 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      final accountType = await Storage.getAccountType();
       final userStorage = Provider.of<UserStorage>(context, listen: false);
 
       try {
-        await userStorage.loadUser(
-          accountType == 'factory' ? AccountType.factory : AccountType.seller,
-        );
+        final hasVaultSession = await userStorage.hasValidVaultSession();
+        if (hasVaultSession) {
+          await userStorage.restoreFromVault();
+          if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+          return;
+        }
+
+        var accountType = await userStorage
+            .getStoredAccountTypeForCurrentUser();
+        accountType ??= await userStorage.fetchAccountTypeForCurrentUser();
+
+        if (accountType == null) {
+          await userStorage.clearAuthenticatedVault();
+          if (mounted) Navigator.of(context).pushReplacementNamed('/welcome');
+          return;
+        }
+
+        try {
+          await userStorage.loadUser(accountType);
+          if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+          return;
+        } catch (e) {
+          debugPrint('[SplashScreen] Profile missing for $accountType: $e');
+          if (!mounted) return;
+          Navigator.of(context).pushReplacementNamed(
+            accountType == AccountType.factory
+                ? '/factory_signup'
+                : '/seller_signup',
+          );
+          return;
+        }
       } catch (e) {
         debugPrint('[SplashScreen] Error loading user: $e');
+        await userStorage.clearAuthenticatedVault();
+        if (mounted) Navigator.of(context).pushReplacementNamed('/welcome');
+        return;
       }
-
-      if (mounted) Navigator.of(context).pushReplacementNamed('/home');
     } catch (e) {
       debugPrint('[SplashScreen] Error: $e');
       if (mounted) Navigator.of(context).pushReplacementNamed('/welcome');

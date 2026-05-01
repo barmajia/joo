@@ -273,6 +273,8 @@ class _AnalysisPageState extends State<AnalysisPage>
           const SizedBox(height: 16),
           _buildKPIs(),
           const SizedBox(height: 16),
+          _buildSmarterAnalytics(),
+          const SizedBox(height: 16),
           _buildTopProducts(),
           const SizedBox(height: 16),
           _buildTopCustomers(),
@@ -611,7 +613,6 @@ class _AnalysisPageState extends State<AnalysisPage>
   }
 
   Widget _buildPeriodSelector() {
-    final l10n = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -788,6 +789,146 @@ class _AnalysisPageState extends State<AnalysisPage>
         ),
       ),
     );
+  }
+
+  Widget _buildSmarterAnalytics() {
+    final kpis =
+        _snapshot!.analyticsData['kpis'] as Map<String, dynamic>? ?? {};
+    final bestCategories = _listFromAnalytics('best_categories');
+    final worstCategories = _listFromAnalytics('worst_categories');
+    final dealPerformance = _listFromAnalytics('deal_performance');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Smart analytics',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    'Profit',
+                    'EGP ${_num(kpis['gross_profit']).toStringAsFixed(2)}',
+                    Icons.savings,
+                    Colors.teal,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricCard(
+                    'Margin',
+                    '${_num(kpis['profit_margin']).toStringAsFixed(1)}%',
+                    Icons.percent,
+                    Colors.indigo,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    'Retention',
+                    '${_num(kpis['customer_retention_rate']).toStringAsFixed(1)}%',
+                    Icons.people_alt,
+                    Colors.deepOrange,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricCard(
+                    '30-day forecast',
+                    'EGP ${_num(kpis['forecasted_monthly_revenue']).toStringAsFixed(0)}',
+                    Icons.trending_up,
+                    Colors.cyan,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildCategorySummary('Best categories', bestCategories),
+            const SizedBox(height: 8),
+            _buildCategorySummary('Worst categories', worstCategories),
+            const SizedBox(height: 8),
+            _buildDealSummary(dealPerformance),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategorySummary(String title, List<Map<String, dynamic>> data) {
+    if (data.isEmpty) {
+      return Text(
+        '$title: no data yet',
+        style: TextStyle(color: Colors.grey[600]),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        ...data.take(3).map((category) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(category['category']?.toString() ?? 'Unknown'),
+              ),
+              Text('EGP ${_num(category['revenue']).toStringAsFixed(2)}'),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildDealSummary(List<Map<String, dynamic>> data) {
+    if (data.isEmpty) {
+      return Text(
+        'Deal performance: no deal orders yet',
+        style: TextStyle(color: Colors.grey[600]),
+      );
+    }
+
+    final topDeal = data.first;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            'Top deal ${topDeal['deal_id']}',
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          '${topDeal['orders']} orders - EGP ${_num(topDeal['revenue']).toStringAsFixed(2)}',
+        ),
+      ],
+    );
+  }
+
+  List<Map<String, dynamic>> _listFromAnalytics(String key) {
+    final value = _snapshot!.analyticsData[key];
+    if (value is List) {
+      return value.whereType<Map<String, dynamic>>().toList();
+    }
+    return [];
+  }
+
+  double _num(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0;
+    return 0;
   }
 
   Widget _buildTopCustomers() {

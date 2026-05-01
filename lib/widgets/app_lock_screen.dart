@@ -102,125 +102,137 @@ class _AppLockScreenState extends State<AppLockScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-              Icon(
-                Icons.lock_outline,
-                size: 80,
-                color: theme.primaryColor.withOpacity(0.8),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                localizations.enterPin,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                localizations.enterPinCode,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.hintColor,
-                ),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 48,
-                    child: TextField(
-                      controller: _pinControllers[index],
-                      focusNode: _pinFocusNodes[index],
-                      keyboardType: TextInputType.number,
-                      textAlign: TextAlign.center,
-                      maxLength: 1,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: _isError
-                            ? Colors.red.withOpacity(0.1)
-                            : theme.colorScheme.primaryContainer.withOpacity(
-                                0.3,
-                              ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: _isError
-                                ? Colors.red
-                                : theme.primaryColor.withOpacity(0.3),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: _isError
-                                ? Colors.red
-                                : theme.primaryColor.withOpacity(0.3),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: theme.primaryColor,
-                            width: 2,
-                          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.lock_outline,
+                        size: 80,
+                        color: theme.primaryColor.withValues(alpha: 0.8),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        localizations.enterPin,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      onChanged: (value) => _onPinChanged(value, index),
-                    ),
-                  );
-                }),
-              ),
-              if (_isError) ...[
-                const SizedBox(height: 16),
-                Text(
-                  localizations.incorrectPin,
-                  style: TextStyle(
-                    color: Colors.red[400],
-                    fontWeight: FontWeight.w500,
+                      const SizedBox(height: 8),
+                      Text(
+                        localizations.enterPinCode,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.hintColor,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List.generate(6, (index) {
+                          return SizedBox(
+                            width: 48,
+                            child: TextField(
+                              controller: _pinControllers[index],
+                              focusNode: _pinFocusNodes[index],
+                              keyboardType: TextInputType.number,
+                              textAlign: TextAlign.center,
+                              maxLength: 1,
+                              obscureText: true,
+                              decoration: InputDecoration(
+                                counterText: '',
+                                filled: true,
+                                fillColor: _isError
+                                    ? Colors.red.withValues(alpha: 0.1)
+                                    : theme.colorScheme.primaryContainer
+                                          .withValues(alpha: 0.3),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: _isError
+                                        ? Colors.red
+                                        : theme.primaryColor.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: _isError
+                                        ? Colors.red
+                                        : theme.primaryColor.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: theme.primaryColor,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              onChanged: (value) => _onPinChanged(value, index),
+                            ),
+                          );
+                        }),
+                      ),
+                      if (_isError) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          localizations.incorrectPin,
+                          style: TextStyle(
+                            color: Colors.red[400],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _submitPin,
+                          style: ElevatedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(localizations.unlock),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (settings.biometricLock)
+                        TextButton.icon(
+                          onPressed: () async {
+                            final success = await settings
+                                .authenticateBiometric();
+                            if (success && mounted) settings.setUnlocked();
+                          },
+                          icon: const Icon(Icons.fingerprint),
+                          label: Text(localizations.useBiometric),
+                        ),
+                    ],
                   ),
                 ),
-              ],
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitPin,
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(localizations.unlock),
-                ),
               ),
-              const SizedBox(height: 16),
-              if (settings.biometricLock)
-                TextButton.icon(
-                  onPressed: () async {
-                    final success = await settings.authenticateBiometric();
-                    if (success && mounted) settings.setUnlocked();
-                  },
-                  icon: const Icon(Icons.fingerprint),
-                  label: Text(localizations.useBiometric),
-                ),
-              const Spacer(),
-              const SizedBox(height: 32),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

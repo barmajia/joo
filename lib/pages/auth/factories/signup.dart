@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:aurora/models/product/product_preset.dart';
 import 'package:aurora/users/users.dart';
 import 'package:aurora/users/account_type.dart';
 import 'package:aurora/storage/userStorage.dart';
@@ -21,10 +24,24 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _locationController = TextEditingController();
-  final _specializationController = TextEditingController();
+  String? _selectedCategoryId;
+  double? _latitude;
+  double? _longitude;
   bool _isLoading = false;
+  bool _isGettingLocation = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool get _isCompletingProfile =>
+      Supabase.instance.client.auth.currentUser != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser?.email != null) {
+      _emailController.text = currentUser!.email!;
+    }
+  }
 
   @override
   void dispose() {
@@ -35,8 +52,40 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
     _confirmPasswordController.dispose();
     _phoneController.dispose();
     _locationController.dispose();
-    _specializationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _useGpsLocation() async {
+    setState(() => _isGettingLocation = true);
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is required.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _locationController.text =
+            '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Location error: $e')));
+    } finally {
+      if (mounted) setState(() => _isGettingLocation = false);
+    }
   }
 
   Future<void> _signup() async {
@@ -45,12 +94,15 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final existingAuthUser = Supabase.instance.client.auth.currentUser;
+      final authUser =
+          existingAuthUser ??
+          (await Supabase.instance.client.auth.signUp(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          )).user;
 
-      if (response.user == null) {
+      if (authUser == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Signup failed. Please try again.')),
@@ -58,9 +110,13 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
         return;
       }
 
+      final category = _selectedCategoryId == null
+          ? null
+          : getCategoryDefinitionById(_selectedCategoryId!);
+
       final user = Users(
-        id: response.user!.id,
-        email: _emailController.text.trim(),
+        id: authUser.id,
+        email: authUser.email ?? _emailController.text.trim(),
         name: _nameController.text.trim(),
         password: '',
         accountType: AccountType.factory,
@@ -70,29 +126,40 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
         metadata: {
           'company_name': _companyController.text.trim(),
           'location': _locationController.text.trim(),
-          'specialization': _specializationController.text.trim(),
+          'latitude': _latitude,
+          'longitude': _longitude,
+          'product_category_id': category?.id,
+          'product_category_name': category?.name,
+          'specialization': category?.name,
         },
       );
 
-      final userStorage = UserStorage();
+      final userStorage = Provider.of<UserStorage>(context, listen: false);
       await userStorage.saveFactory(
         user,
         companyName: _companyController.text.trim(),
         phone: _phoneController.text,
         location: _locationController.text.trim(),
-        specialization: _specializationController.text.trim(),
+        locationText: _locationController.text.trim(),
+        latitude: _latitude,
+        longitude: _longitude,
+        productCategoryId: category?.id,
+        productCategoryName: category?.name,
+        specialization: category?.name,
       );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Welcome, ${user.name}! Account created successfully.')),
+        SnackBar(
+          content: Text('Welcome, ${user.name}! Account created successfully.'),
+        ),
       );
       Navigator.of(context).pushReplacementNamed('/home');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Signup error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Signup error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -113,29 +180,56 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
                 const SizedBox(height: 20),
                 const Icon(Icons.factory, size: 80, color: Color(0xFF6366F1)),
                 const SizedBox(height: 24),
-                const Text('Create Factory Account', textAlign: TextAlign.center, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Create Factory Account',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
-                Text('Fill in your details to get started', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+                Text(
+                  'Fill in your details to get started',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                ),
                 const SizedBox(height: 32),
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Contact Name', prefixIcon: Icon(Icons.person_outlined), border: OutlineInputBorder()),
-                  validator: (value) => value?.isEmpty == true ? 'Please enter your name' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact Name',
+                    prefixIcon: Icon(Icons.person_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) =>
+                      value?.isEmpty == true ? 'Please enter your name' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _companyController,
-                  decoration: const InputDecoration(labelText: 'Company Name', prefixIcon: Icon(Icons.business), border: OutlineInputBorder()),
-                  validator: (value) => value?.isEmpty == true ? 'Please enter company name' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Company Name',
+                    prefixIcon: Icon(Icons.business),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value?.isEmpty == true
+                      ? 'Please enter company name'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _emailController,
+                  enabled: !_isCompletingProfile,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    prefixIcon: Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(),
+                  ),
                   validator: (value) {
-                    if (value?.isEmpty == true) return 'Please enter your email';
-                    if (!value!.contains('@')) return 'Please enter a valid email';
+                    if (_isCompletingProfile) return null;
+                    if (value?.isEmpty == true)
+                      return 'Please enter your email';
+                    if (!value!.contains('@'))
+                      return 'Please enter a valid email';
                     return null;
                   },
                 ),
@@ -143,35 +237,82 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone Number', prefixIcon: Icon(Icons.phone_outlined), border: OutlineInputBorder()),
-                  validator: (value) => value?.isEmpty == true ? 'Please enter your phone number' : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value?.isEmpty == true
+                      ? 'Please enter your phone number'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _locationController,
-                  decoration: const InputDecoration(labelText: 'Location', prefixIcon: Icon(Icons.location_on_outlined), border: OutlineInputBorder()),
-                  validator: (value) => value?.isEmpty == true ? 'Please enter location' : null,
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: 'Location',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      onPressed: _isGettingLocation ? null : _useGpsLocation,
+                      icon: _isGettingLocation
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.my_location),
+                    ),
+                  ),
+                  validator: (value) =>
+                      value?.isEmpty == true ? 'Please enter location' : null,
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _specializationController,
-                  decoration: const InputDecoration(labelText: 'Specialization', prefixIcon: Icon(Icons.work_outline), border: OutlineInputBorder()),
-                  validator: (value) => value?.isEmpty == true ? 'Please enter specialization' : null,
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedCategoryId,
+                  decoration: const InputDecoration(
+                    labelText: 'Factory Product Category',
+                    prefixIcon: Icon(Icons.category_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: categoryDefinitions.entries.map((entry) {
+                    final category = entry.value;
+                    return DropdownMenuItem(
+                      value: category.id,
+                      child: Text('${category.icon} ${category.name}'),
+                    );
+                  }).toList(),
+                  onChanged: (value) =>
+                      setState(() => _selectedCategoryId = value),
+                  validator: (value) => value == null
+                      ? 'Please select the factory product category'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
-                    labelText: 'Password', prefixIcon: Icon(Icons.lock_outlined), border: const OutlineInputBorder(),
+                    labelText: 'Password',
+                    prefixIcon: Icon(Icons.lock_outlined),
+                    border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                   validator: (value) {
-                    if (value?.isEmpty == true) return 'Please enter a password';
-                    if (value!.length < 6) return 'Password must be at least 6 characters';
+                    if (_isCompletingProfile) return null;
+                    if (value?.isEmpty == true)
+                      return 'Please enter a password';
+                    if (value!.length < 6)
+                      return 'Password must be at least 6 characters';
                     return null;
                   },
                 ),
@@ -180,24 +321,47 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
                   controller: _confirmPasswordController,
                   obscureText: _obscureConfirmPassword,
                   decoration: InputDecoration(
-                    labelText: 'Confirm Password', prefixIcon: Icon(Icons.lock_outlined), border: const OutlineInputBorder(),
+                    labelText: 'Confirm Password',
+                    prefixIcon: Icon(Icons.lock_outlined),
+                    border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () => setState(
+                        () =>
+                            _obscureConfirmPassword = !_obscureConfirmPassword,
+                      ),
                     ),
                   ),
-                  validator: (value) => value != _passwordController.text ? 'Passwords do not match' : null,
+                  validator: (value) => value != _passwordController.text
+                      ? _isCompletingProfile
+                            ? null
+                            : 'Passwords do not match'
+                      : null,
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _signup,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1), foregroundColor: Colors.white,
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: _isLoading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Text('Sign Up', style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 16),
@@ -207,7 +371,9 @@ class _FactorySignupPageState extends State<FactorySignupPage> {
                     const Text('Already have an account?'),
                     TextButton(
                       onPressed: () => Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const FactoryLoginPage()),
+                        MaterialPageRoute(
+                          builder: (_) => const FactoryLoginPage(),
+                        ),
                       ),
                       child: const Text('Login'),
                     ),

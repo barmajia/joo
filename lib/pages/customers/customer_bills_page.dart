@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:aurora/models/customers/customermodel.dart';
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/enums.dart';
+import 'package:aurora/services/invoice_pdf_service.dart';
 import 'package:aurora/services/order_service.dart';
 import 'package:aurora/storage/bill_vault_storage.dart';
 import 'bill_form.dart';
@@ -34,7 +35,9 @@ class _CustomerBillsPageState extends State<CustomerBillsPage> {
       final vault = await BillVaultStorage.getInstance();
       final bills = vault.getCustomerBills(widget.customer.id);
       if (bills.isEmpty) {
-        final fetched = await _orderService.fetchOrdersByCustomer(widget.customer.id);
+        final fetched = await _orderService.fetchOrdersByCustomer(
+          widget.customer.id,
+        );
         if (fetched.isNotEmpty) {
           await vault.saveCustomerBills(widget.customer.id, fetched);
           setState(() => _bills = fetched);
@@ -69,7 +72,10 @@ class _CustomerBillsPageState extends State<CustomerBillsPage> {
             const Text('Bills', style: TextStyle(fontSize: 16)),
             Text(
               widget.customer.name,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.normal,
+              ),
             ),
           ],
         ),
@@ -82,7 +88,10 @@ class _CustomerBillsPageState extends State<CustomerBillsPage> {
               const PopupMenuDivider(),
               const PopupMenuItem(value: 'pending', child: Text('Pending')),
               const PopupMenuItem(value: 'confirmed', child: Text('Confirmed')),
-              const PopupMenuItem(value: 'processing', child: Text('Processing')),
+              const PopupMenuItem(
+                value: 'processing',
+                child: Text('Processing'),
+              ),
               const PopupMenuItem(value: 'shipped', child: Text('Shipped')),
               const PopupMenuItem(value: 'delivered', child: Text('Delivered')),
               const PopupMenuItem(value: 'cancelled', child: Text('Cancelled')),
@@ -93,22 +102,22 @@ class _CustomerBillsPageState extends State<CustomerBillsPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _filteredBills.isEmpty
-              ? _buildEmpty()
-              : RefreshIndicator(
-                  onRefresh: _refreshBills,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: _filteredBills.length,
-itemBuilder: (context, index) {
-                       final order = _filteredBills[index];
-                       return _BillCard(
-                         order: order,
-                         onTap: () => _viewBillDetail(order),
-                         onLongPress: () => _deleteBill(order),
-                       );
-                     },
-                  ),
-                ),
+          ? _buildEmpty()
+          : RefreshIndicator(
+              onRefresh: _refreshBills,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(8),
+                itemCount: _filteredBills.length,
+                itemBuilder: (context, index) {
+                  final order = _filteredBills[index];
+                  return _BillCard(
+                    order: order,
+                    onTap: () => _viewBillDetail(order),
+                    onLongPress: () => _deleteBill(order),
+                  );
+                },
+              ),
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _createBill(),
         child: const Icon(Icons.add),
@@ -149,72 +158,71 @@ itemBuilder: (context, index) {
     ).then((_) => _refreshBills());
   }
 
-   void _viewBillDetail(Order order) {
-     showDialog(
-       context: context,
-       builder: (context) => _BillDetailDialog(order: order),
-     );
-   }
+  void _viewBillDetail(Order order) {
+    showDialog(
+      context: context,
+      builder: (context) =>
+          _BillDetailDialog(order: order, customer: widget.customer),
+    );
+  }
 
-   Future<void> _deleteBill(Order order) async {
-     // Show confirmation dialog
-     final confirm = await showDialog<bool>(
-       context: context,
-       builder: (context) => AlertDialog(
-         title: const Text('Delete Bill'),
-         content: Text(
-           'Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.',
-         ),
-         actions: [
-           TextButton(
-             onPressed: () => Navigator.pop(context, false),
-             child: const Text('Cancel'),
-           ),
-           ElevatedButton(
-             onPressed: () => Navigator.pop(context, true),
-             style: ElevatedButton.styleFrom(
-               backgroundColor: Colors.red,
-             ),
-             child: const Text('Delete'),
-           ),
-         ],
-       ),
-     );
+  Future<void> _deleteBill(Order order) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Bill'),
+        content: Text(
+          'Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
 
-     if (confirm != true) return;
+    if (confirm != true) return;
 
-     // Set loading state
-     if (!mounted) return;
-     setState(() => _isLoading = true);
+    // Set loading state
+    if (!mounted) return;
+    setState(() => _isLoading = true);
 
-     try {
-       // Delete the bill (this will restore product quantities via OrderService.deleteOrder)
-       await _orderService.deleteOrder(order.id);
+    try {
+      // Delete the bill (this will restore product quantities via OrderService.deleteOrder)
+      await _orderService.deleteOrder(order.id);
 
-       if (mounted) {
-         // Reload bills
-         await _loadBills();
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text('Bill deleted and product quantities restored'),
-             backgroundColor: Colors.green,
-           ),
-         );
-       }
-     } catch (e) {
-       debugPrint('[CustomerBillsPage._deleteBill] Error: $e');
-       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text('Error deleting bill: $e'),
-             backgroundColor: Colors.red,
-           ),
-         );
-       }
-     } finally {
-       if (mounted) setState(() => _isLoading = false);
-     }
-   }
+      if (mounted) {
+        // Reload bills
+        await _loadBills();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Bill deleted and product quantities restored'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[CustomerBillsPage._deleteBill] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting bill: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 }
 
 class _BillCard extends StatelessWidget {
@@ -222,11 +230,7 @@ class _BillCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  const _BillCard({
-    required this.order, 
-    required this.onTap,
-    this.onLongPress,
-  });
+  const _BillCard({required this.order, required this.onTap, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -257,7 +261,11 @@ class _BillCard extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.shopping_basket, size: 14, color: Colors.grey[600]),
+                  Icon(
+                    Icons.shopping_basket,
+                    size: 14,
+                    color: Colors.grey[600],
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${order.totalItems} item(s)',
@@ -276,7 +284,11 @@ class _BillCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   order.notes!,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -288,7 +300,10 @@ class _BillCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Payment', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                      Text(
+                        'Payment',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
                       Text(
                         order.paymentMethod.value.toUpperCase(),
                         style: const TextStyle(fontWeight: FontWeight.w500),
@@ -298,7 +313,10 @@ class _BillCard extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text('Total', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                      Text(
+                        'Total',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
                       Text(
                         'EGP ${order.total.toStringAsFixed(2)}',
                         style: TextStyle(
@@ -319,11 +337,23 @@ class _BillCard extends StatelessWidget {
   }
 }
 
-  String _formatDate(DateTime date) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
-  
+String _formatDate(DateTime date) {
+  final months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${months[date.month - 1]} ${date.day}, ${date.year}';
+}
 
 class _StatusBadge extends StatelessWidget {
   final OrderStatus status;
@@ -373,7 +403,11 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
@@ -381,8 +415,9 @@ class _StatusBadge extends StatelessWidget {
 
 class _BillDetailDialog extends StatelessWidget {
   final Order order;
+  final Customer? customer;
 
-  const _BillDetailDialog({required this.order});
+  const _BillDetailDialog({required this.order, this.customer});
 
   @override
   Widget build(BuildContext context) {
@@ -410,31 +445,45 @@ class _BillDetailDialog extends StatelessWidget {
             _detailRow('Created', _formatDate(order.createdAt)),
             if (order.notes != null && order.notes!.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('Notes:', style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[700])),
+              Text(
+                'Notes:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[700],
+                ),
+              ),
               Text(order.notes!, style: TextStyle(color: Colors.grey[600])),
             ],
             if (order.items.isNotEmpty) ...[
               const SizedBox(height: 16),
-              const Text('Items:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Items:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
-              ...order.items.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${item.productName} x${item.quantity}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
+              ...order.items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${item.productName} x${item.quantity}',
+                          style: const TextStyle(fontSize: 12),
                         ),
-                        Text(
-                          'EGP ${item.totalPrice.toStringAsFixed(2)}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                      Text(
+                        'EGP ${item.totalPrice.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
-                  )),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ],
         ),
@@ -443,6 +492,16 @@ class _BillDetailDialog extends StatelessWidget {
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Close'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () async {
+            await InvoicePdfService().previewInvoice(
+              order: order,
+              customer: customer,
+            );
+          },
+          icon: const Icon(Icons.picture_as_pdf),
+          label: const Text('PDF'),
         ),
       ],
     );
@@ -457,7 +516,10 @@ class _BillDetailDialog extends StatelessWidget {
           Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
           Text(
             value,
-            style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal, fontSize: 12),
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -465,7 +527,20 @@ class _BillDetailDialog extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }

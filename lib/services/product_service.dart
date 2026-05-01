@@ -120,6 +120,12 @@ class ProductService {
 
       final vault = await _vault;
       await vault.saveProduct(productId, product);
+      final sellerProducts = vault.getSellerProducts(product.sellerId);
+      final index = sellerProducts.indexWhere((p) => p.id == productId);
+      if (index != -1) {
+        sellerProducts[index] = product;
+        await vault.saveSellerProducts(product.sellerId, sellerProducts);
+      }
 
       return product;
     } catch (e) {

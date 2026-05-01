@@ -4,12 +4,14 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:aurora/models/product/productModel.dart';
 import 'package:aurora/models/product/product_preset.dart';
 import 'package:aurora/storage/product_vault_storage.dart';
 import 'package:aurora/storage/product_secrets_storage.dart';
+import 'package:aurora/storage/userStorage.dart';
 import 'package:aurora/utils/connectivity_helper.dart';
 
 class AddProductPage extends StatefulWidget {
@@ -44,6 +46,7 @@ class _AddProductPageState extends State<AddProductPage> {
 
   // === Selection State (preset-only) ===
   String? _selectedCategoryId;
+  String? _allowedCategoryId;
   String? _selectedSubcategory;
   BrandOption? _selectedBrand;
   ColorOption? _selectedColor;
@@ -70,7 +73,6 @@ class _AddProductPageState extends State<AddProductPage> {
   bool _isInitializing = true;
   String? _initError;
   bool get _isEditing => widget.product != null;
-  String? get _productId => _isEditing ? widget.product?.id : null;
 
   // === Offline Support ===
   bool _isOnline = true;
@@ -132,6 +134,7 @@ class _AddProductPageState extends State<AddProductPage> {
 
       // Load user currency preference
       await _loadUserCurrency();
+      _loadAllowedCategory();
 
       // Check connectivity
       _isOnline = await ConnectivityHelper.hasInternet;
@@ -144,11 +147,17 @@ class _AddProductPageState extends State<AddProductPage> {
       // Apply preselected values (if coming from category browser)
       if (mounted) {
         if (widget.preselectedCategoryId != null) {
-          _selectedCategoryId = widget.preselectedCategoryId;
+          _selectedCategoryId =
+              _isCategoryAllowed(widget.preselectedCategoryId!)
+              ? widget.preselectedCategoryId
+              : _allowedCategoryId;
         }
         if (widget.preselectedSubcategory != null &&
             _selectedCategoryId != null) {
           _selectedSubcategory = widget.preselectedSubcategory;
+        }
+        if (!_isEditing && _selectedCategoryId == null) {
+          _selectedCategoryId = _allowedCategoryId;
         }
       }
     } catch (e, stack) {
@@ -178,15 +187,51 @@ class _AddProductPageState extends State<AddProductPage> {
     }
   }
 
+  void _loadAllowedCategory() {
+    try {
+      final userStorage = Provider.of<UserStorage>(context, listen: false);
+      final metadata = userStorage.currentUser?.metadata;
+      final categoryId = _metadataString(metadata?['product_category_id']);
+      final categoryName =
+          _metadataString(metadata?['product_category_name']) ??
+          _metadataString(metadata?['specialization']);
+      String? resolvedId;
+      if (categoryId != null && categoryDefinitions.containsKey(categoryId)) {
+        resolvedId = categoryId;
+      } else if (categoryName != null) {
+        resolvedId = getCategoryDefinitionByName(categoryName)?.id;
+      }
+
+      if (resolvedId != null && resolvedId.isNotEmpty) {
+        _allowedCategoryId = resolvedId;
+        if (!_isEditing && _selectedCategoryId == null) {
+          _selectedCategoryId = resolvedId;
+        }
+      }
+    } catch (e) {
+      debugPrint('[Allowed Category Load] Error: $e');
+    }
+  }
+
+  String? _metadataString(dynamic value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  bool _isCategoryAllowed(String categoryId) {
+    return _allowedCategoryId == null || _allowedCategoryId == categoryId;
+  }
+
   void _loadProductData() {
     final p = widget.product!;
 
     // Basic fields
-    _titleController.text = p.title ?? '';
+    _titleController.text = p.title;
     _descriptionNotesController.text =
-        p.description?.split('Notes: ').lastOrNull ?? '';
+        p.description.split('Notes: ').lastOrNull ?? '';
     _priceController.text = p.price?.toStringAsFixed(2) ?? '';
-    _quantityController.text = p.quantity?.toString() ?? '0';
+    _quantityController.text = p.quantity.toString();
     _skuController.text = p.sku ?? '';
     _asinController.text = p.asin ?? '';
 
@@ -221,7 +266,7 @@ class _AddProductPageState extends State<AddProductPage> {
     }
 
     // Brand
-    if (p.brand.isNotEmpty == true) {
+    if (p.brand.isNotEmpty) {
       final catName = getCategoryDefinitionById(
         _selectedCategoryId ?? '',
       )?.name;
@@ -643,6 +688,12 @@ class _AddProductPageState extends State<AddProductPage> {
   }
 
   Widget _buildCategoryDropdown() {
+    final entries = _isEditing || _allowedCategoryId == null
+        ? categoryDefinitions.entries
+        : categoryDefinitions.entries.where(
+            (entry) => entry.key == _allowedCategoryId,
+          );
+
     return DropdownButtonFormField<String>(
       initialValue: _selectedCategoryId,
       decoration: const InputDecoration(
@@ -650,23 +701,25 @@ class _AddProductPageState extends State<AddProductPage> {
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.category),
       ),
-      items: categoryDefinitions.entries.map((entry) {
+      items: entries.map((entry) {
         final def = entry.value;
         return DropdownMenuItem(
           value: def.id,
           child: Text('${def.icon} ${def.name}'),
         );
       }).toList(),
-      onChanged: (val) => setState(() {
-        _selectedCategoryId = val;
-        _selectedSubcategory = null;
-        if (!_isEditing) {
-          _attributes.clear();
-          _attributeErrors.clear();
-          for (final c in _attributeControllers.values) c.dispose();
-          _attributeControllers.clear();
-        }
-      }),
+      onChanged: !_isEditing && _allowedCategoryId != null
+          ? null
+          : (val) => setState(() {
+              _selectedCategoryId = val;
+              _selectedSubcategory = null;
+              if (!_isEditing) {
+                _attributes.clear();
+                _attributeErrors.clear();
+                for (final c in _attributeControllers.values) c.dispose();
+                _attributeControllers.clear();
+              }
+            }),
       validator: (v) => v == null ? 'Required' : null,
     );
   }
@@ -1176,7 +1229,7 @@ class _AddProductPageState extends State<AddProductPage> {
         decoration: BoxDecoration(
           border: Border.all(color: theme.dividerColor),
           borderRadius: BorderRadius.circular(12),
-          color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
         ),
         child: Center(
           child: Column(
@@ -1217,7 +1270,7 @@ class _AddProductPageState extends State<AddProductPage> {
             style: BorderStyle.solid,
           ),
           borderRadius: BorderRadius.circular(8),
-          color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

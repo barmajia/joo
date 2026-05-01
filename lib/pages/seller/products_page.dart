@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:aurora/models/product/productModel.dart';
 import 'package:aurora/models/product/categories.dart';
+import 'package:aurora/pages/seller/sku_scanner_page.dart';
+import 'package:aurora/services/product_import_export_service.dart';
 import 'package:aurora/services/product_service.dart';
 import 'package:aurora/pages/seller/add_product_page.dart';
 
@@ -17,6 +19,7 @@ class SellerProductsPage extends StatefulWidget {
 
 class _SellerProductsPageState extends State<SellerProductsPage> {
   final _productService = ProductService();
+  final _importExportService = ProductImportExportService();
   List<Product> _products = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -199,6 +202,35 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
         title: const Text('My Products'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: _isLoading ? null : _openSkuScanner,
+            tooltip: 'Scan SKU',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'import') _importProducts();
+              if (value == 'export') _exportProducts();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'import',
+                child: ListTile(
+                  leading: Icon(Icons.upload_file),
+                  title: Text('Import CSV'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'export',
+                child: ListTile(
+                  leading: Icon(Icons.download),
+                  title: Text('Export inventory'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+          IconButton(
             icon: const Icon(Icons.cloud_download),
             onPressed: _isLoading ? null : _forceSyncFromCloud,
             tooltip: 'Sync from Cloud',
@@ -241,7 +273,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(),
@@ -294,6 +326,82 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
         },
         child: const Icon(Icons.add),
         tooltip: 'Add Product',
+      ),
+    );
+  }
+
+  Future<void> _openSkuScanner() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SkuScannerPage()),
+    );
+    if (mounted) _loadProducts();
+  }
+
+  Future<void> _exportProducts() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _importExportService.exportInventory(
+        sellerId: user.id,
+        products: _products,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+    }
+  }
+
+  Future<void> _importProducts() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final result = await _importExportService.importInventory(
+        sellerId: user.id,
+      );
+      await _productService.refreshVault(user.id);
+      await _loadProducts();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${result.imported} product(s), skipped ${result.skipped}.',
+          ),
+          action: result.errors.isEmpty
+              ? null
+              : SnackBarAction(
+                  label: 'Details',
+                  onPressed: () => _showImportErrors(result.errors),
+                ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
+    }
+  }
+
+  void _showImportErrors(List<String> errors) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import details'),
+        content: SingleChildScrollView(child: Text(errors.join('\n'))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -442,7 +550,7 @@ class _SellerProductsPageState extends State<SellerProductsPage> {
                           decoration: BoxDecoration(
                             color: _getStatusColor(
                               product.status,
-                            ).withOpacity(0.15),
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
