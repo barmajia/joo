@@ -116,8 +116,6 @@ class _MarketplacePageState extends State<MarketplacePage> {
       final moreProducts = await _productService.getAllProducts(
         limit: _pageSize,
         offset: _offset,
-        category: _selectedCategory != null && _selectedCategory != 'All' ? _selectedCategory : null,
-        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
 
       if (!mounted) return;

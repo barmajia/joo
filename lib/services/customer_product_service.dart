@@ -36,6 +36,7 @@ class CustomerProductService {
       final categories = response
           .map((e) => e['category'] as String?)
           .where((c) => c != null && c.isNotEmpty)
+          .map((c) => c!)
           .toSet()
           .toList();
       
