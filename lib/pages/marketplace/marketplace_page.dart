@@ -16,7 +16,7 @@ class MarketplacePage extends StatefulWidget {
 class _MarketplacePageState extends State<MarketplacePage> {
   final _productService = CustomerProductService();
   final _scrollController = ScrollController();
-  
+
   List<Product> _products = [];
   bool _isLoading = true;
   bool _isLoadingMore = false;
@@ -24,7 +24,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
   String _searchQuery = '';
   String? _selectedCategory;
   final _searchController = TextEditingController();
-  
+
   static const int _pageSize = 20;
   int _offset = 0;
   bool _hasMore = true;
@@ -57,7 +57,8 @@ class _MarketplacePageState extends State<MarketplacePage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       if (!_isLoadingMore && _hasMore) {
         _loadMoreProducts();
       }
@@ -90,13 +91,22 @@ class _MarketplacePageState extends State<MarketplacePage> {
         _hasMore = products.length >= _pageSize;
       });
 
-      AppLogger.info('Loaded ${products.length} products for marketplace', context: 'Marketplace');
+      AppLogger.info(
+        'Loaded ${products.length} products for marketplace',
+        context: 'Marketplace',
+      );
     } catch (e, stack) {
-      AppLogger.error('Failed to load marketplace products: $e', context: 'Marketplace', error: e, stackTrace: stack);
-      
+      AppLogger.error(
+        'Failed to load marketplace products: $e',
+        context: 'Marketplace',
+        error: e,
+        stackTrace: stack,
+      );
+
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load products.\n\nError: ${e.toString()}\n\nPlease check your Supabase connection and ensure the products table has data.';
+        _errorMessage =
+            'Failed to load products.\n\nError: ${e.toString()}\n\nPlease check your Supabase connection and ensure the products table has data.';
         _isLoading = false;
       });
     }
@@ -111,7 +121,10 @@ class _MarketplacePageState extends State<MarketplacePage> {
     });
 
     try {
-      AppLogger.info('Loading more products (offset: $_offset)', context: 'Marketplace');
+      AppLogger.info(
+        'Loading more products (offset: $_offset)',
+        context: 'Marketplace',
+      );
 
       final moreProducts = await _productService.getAllProducts(
         limit: _pageSize,
@@ -126,10 +139,18 @@ class _MarketplacePageState extends State<MarketplacePage> {
         _hasMore = moreProducts.length >= _pageSize;
       });
 
-      AppLogger.info('Loaded ${moreProducts.length} more products', context: 'Marketplace');
+      AppLogger.info(
+        'Loaded ${moreProducts.length} more products',
+        context: 'Marketplace',
+      );
     } catch (e, stack) {
-      AppLogger.error('Failed to load more products: $e', context: 'Marketplace', error: e, stackTrace: stack);
-      
+      AppLogger.error(
+        'Failed to load more products: $e',
+        context: 'Marketplace',
+        error: e,
+        stackTrace: stack,
+      );
+
       if (!mounted) return;
       setState(() {
         _isLoadingMore = false;
@@ -141,15 +162,17 @@ class _MarketplacePageState extends State<MarketplacePage> {
     var filtered = _products;
 
     if (_selectedCategory != null && _selectedCategory != 'All') {
-      filtered = filtered.where((p) => p.category == _selectedCategory).toList();
+      filtered = filtered
+          .where((p) => p.category == _selectedCategory)
+          .toList();
     }
 
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((p) {
-        return (p.title?.toLowerCase().contains(query) ?? false) ||
-               (p.sku?.toLowerCase().contains(query) ?? false) ||
-               (p.brand?.toLowerCase().contains(query) ?? false);
+        return (p.title.toLowerCase().contains(query)) ||
+            (p.sku?.toLowerCase().contains(query) ?? false) ||
+            (p.brand.toLowerCase().contains(query));
       }).toList();
     }
 
@@ -241,8 +264,9 @@ class _MarketplacePageState extends State<MarketplacePage> {
                     itemCount: _categories.length,
                     itemBuilder: (context, index) {
                       final category = _categories[index];
-                      final isSelected = _selectedCategory == category || 
-                                        (_selectedCategory == null && category == 'All');
+                      final isSelected =
+                          _selectedCategory == category ||
+                          (_selectedCategory == null && category == 'All');
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: FilterChip(
@@ -250,11 +274,15 @@ class _MarketplacePageState extends State<MarketplacePage> {
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
-                              _selectedCategory = category == 'All' ? null : category;
+                              _selectedCategory = category == 'All'
+                                  ? null
+                                  : category;
                             });
                             _loadProducts();
                           },
-                          selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                          selectedColor: theme.colorScheme.primary.withValues(
+                            alpha: 0.2,
+                          ),
                           checkmarkColor: theme.colorScheme.primary,
                         ),
                       );
@@ -268,63 +296,72 @@ class _MarketplacePageState extends State<MarketplacePage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _errorMessage != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.error_outline, size: 48, color: Colors.grey[400]),
-                            const SizedBox(height: 16),
-                            Text(_errorMessage!, textAlign: TextAlign.center),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: _loadProducts,
-                              child: const Text('Retry'),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.grey[400],
                         ),
-                      )
-                    : _filteredProducts.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey[400]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _searchQuery.isNotEmpty 
-                                      ? 'No products found for "$_searchQuery"'
-                                      : 'No products available',
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          )
-                        : RefreshIndicator(
-                            onRefresh: _loadProducts,
-                            child: GridView.builder(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.all(16),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                mainAxisSpacing: 12,
-                                crossAxisSpacing: 12,
-                                childAspectRatio: 0.7,
-                              ),
-                              itemCount: _filteredProducts.length + (_hasMore ? 1 : 0),
-                              itemBuilder: (context, index) {
-                                if (index >= _filteredProducts.length) {
-                                  return const Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.all(16),
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  );
-                                }
-                                final product = _filteredProducts[index];
-                                return _ProductCard(product: product);
-                              },
-                            ),
+                        const SizedBox(height: 16),
+                        Text(_errorMessage!, textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _loadProducts,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _filteredProducts.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _searchQuery.isNotEmpty
+                              ? 'No products found for "$_searchQuery"'
+                              : 'No products available',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadProducts,
+                    child: GridView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.7,
                           ),
+                      itemCount: _filteredProducts.length + (_hasMore ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index >= _filteredProducts.length) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        }
+                        final product = _filteredProducts[index];
+                        return _ProductCard(product: product);
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -368,7 +405,11 @@ class _ProductCard extends StatelessWidget {
                     )
                   : Container(
                       color: Colors.grey[200],
-                      child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                      child: const Icon(
+                        Icons.image,
+                        size: 40,
+                        color: Colors.grey,
+                      ),
                     ),
             ),
             Expanded(
@@ -379,15 +420,18 @@ class _ProductCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      product.title ?? 'Unknown Product',
+                      product.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 4),
-                    if (product.brand != null)
+                    if (!product.brand.isEmpty)
                       Text(
-                        product.brand!,
+                        product.brand,
                         style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -407,14 +451,19 @@ class _ProductCard extends StatelessWidget {
                         InkWell(
                           onTap: () {
                             cart.addItem(product);
-                            AppLogger.logCartAction('Added from marketplace', productId: product.id, quantity: 1);
+                            AppLogger.logCartAction(
+                              'Added from marketplace',
+                              productId: product.id,
+                              quantity: 1,
+                            );
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('${product.title} added to cart'),
                                 duration: const Duration(seconds: 1),
                                 action: SnackBarAction(
                                   label: 'View Cart',
-                                  onPressed: () => Navigator.pushNamed(context, '/cart'),
+                                  onPressed: () =>
+                                      Navigator.pushNamed(context, '/cart'),
                                 ),
                               ),
                             );
@@ -422,7 +471,9 @@ class _ProductCard extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: inCart ? Colors.green : theme.colorScheme.primary,
+                              color: inCart
+                                  ? Colors.green
+                                  : theme.colorScheme.primary,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
@@ -483,12 +534,14 @@ class _ProductCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      product.title ?? '',
-                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      product.title,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    if (product.brand != null)
-                      Chip(label: Text(product.brand!)),
+                    if (!product.brand.isEmpty)
+                      Chip(label: Text(product.brand)),
                     const SizedBox(height: 12),
                     Text(
                       '\$${product.price?.toStringAsFixed(2) ?? '0.00'}',
@@ -500,20 +553,31 @@ class _ProductCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       'In Stock: ${product.quantity}',
-                      style: TextStyle(color: product.quantity > 0 ? Colors.green : Colors.red),
+                      style: TextStyle(
+                        color: product.quantity > 0 ? Colors.green : Colors.red,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     if (product.sku != null) ...[
                       Row(
                         children: [
-                          Text('SKU: ', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                          Text(product.sku!, style: const TextStyle(fontSize: 13)),
+                          Text(
+                            'SKU: ',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                          ),
+                          Text(
+                            product.sku!,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
                     ],
                     Text(
-                      product.description ?? 'No description available',
+                      product.description,
                       style: theme.textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 24),
@@ -523,10 +587,16 @@ class _ProductCard extends StatelessWidget {
                           child: OutlinedButton.icon(
                             onPressed: () {
                               cart.addItem(product);
-                              AppLogger.logCartAction('Added to cart', productId: product.id, quantity: 1);
+                              AppLogger.logCartAction(
+                                'Added to cart',
+                                productId: product.id,
+                                quantity: 1,
+                              );
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('${product.title} added to cart'),
+                                  content: Text(
+                                    '${product.title} added to cart',
+                                  ),
                                   action: SnackBarAction(
                                     label: 'View Cart',
                                     onPressed: () {
@@ -549,7 +619,11 @@ class _ProductCard extends StatelessWidget {
                           child: ElevatedButton.icon(
                             onPressed: () {
                               cart.addItem(product);
-                              AppLogger.logCartAction('Buy now clicked', productId: product.id, quantity: 1);
+                              AppLogger.logCartAction(
+                                'Buy now clicked',
+                                productId: product.id,
+                                quantity: 1,
+                              );
                               Navigator.pop(context);
                               Navigator.pushNamed(context, '/cart');
                             },
