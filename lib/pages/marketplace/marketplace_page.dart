@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:aurora/models/product/productModel.dart';
 import 'package:aurora/providers/cart_provider.dart';
 import 'package:aurora/services/app_logger.dart';
+import 'package:aurora/services/customer_product_service.dart';
 
 class MarketplacePage extends StatefulWidget {
   const MarketplacePage({super.key});
@@ -14,12 +14,20 @@ class MarketplacePage extends StatefulWidget {
 }
 
 class _MarketplacePageState extends State<MarketplacePage> {
+  final _productService = CustomerProductService();
+  final _scrollController = ScrollController();
+  
   List<Product> _products = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
   String? _errorMessage;
   String _searchQuery = '';
   String? _selectedCategory;
   final _searchController = TextEditingController();
+  
+  static const int _pageSize = 20;
+  int _offset = 0;
+  bool _hasMore = true;
 
   final List<String> _categories = [
     'All',
@@ -38,12 +46,22 @@ class _MarketplacePageState extends State<MarketplacePage> {
     super.initState();
     AppLogger.logPageView('Marketplace');
     _loadProducts();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoadingMore && _hasMore) {
+        _loadMoreProducts();
+      }
+    }
   }
 
   Future<void> _loadProducts() async {
@@ -52,47 +70,71 @@ class _MarketplacePageState extends State<MarketplacePage> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _offset = 0;
+      _hasMore = true;
     });
 
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) {
-        if (!mounted) return;
-        setState(() {
-          _errorMessage = 'Please log in to browse products';
-          _isLoading = false;
-        });
-        return;
-      }
-
       AppLogger.info('Loading marketplace products', context: 'Marketplace');
 
-      final response = await Supabase.instance.client
-          .from('products')
-          .select()
-          .eq('status', 'active')
-          .eq('is_deleted', false)
-          .neq('seller_id', user.id)
-          .order('created_at', ascending: false)
-          .limit(100);
-
-      final products = response.map((json) => Product.fromJson(json)).toList();
+      final products = await _productService.getAllProducts(
+        limit: _pageSize,
+        offset: 0,
+      );
 
       if (!mounted) return;
 
       setState(() {
         _products = products;
         _isLoading = false;
+        _hasMore = products.length >= _pageSize;
       });
 
       AppLogger.info('Loaded ${products.length} products for marketplace', context: 'Marketplace');
     } catch (e, stack) {
-      AppLogger.error('Failed to load marketplace products', context: 'Marketplace', error: e, stackTrace: stack);
+      AppLogger.error('Failed to load marketplace products: $e', context: 'Marketplace', error: e, stackTrace: stack);
       
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load products: ${e.toString()}';
+        _errorMessage = 'Failed to load products.\n\nError: ${e.toString()}\n\nPlease check your Supabase connection and ensure the products table has data.';
         _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMoreProducts() async {
+    if (!mounted || _isLoadingMore || !_hasMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+      _offset += _pageSize;
+    });
+
+    try {
+      AppLogger.info('Loading more products (offset: $_offset)', context: 'Marketplace');
+
+      final moreProducts = await _productService.getAllProducts(
+        limit: _pageSize,
+        offset: _offset,
+        category: _selectedCategory != null && _selectedCategory != 'All' ? _selectedCategory : null,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _products.addAll(moreProducts);
+        _isLoadingMore = false;
+        _hasMore = moreProducts.length >= _pageSize;
+      });
+
+      AppLogger.info('Loaded ${moreProducts.length} more products', context: 'Marketplace');
+    } catch (e, stack) {
+      AppLogger.error('Failed to load more products: $e', context: 'Marketplace', error: e, stackTrace: stack);
+      
+      if (!mounted) return;
+      setState(() {
+        _isLoadingMore = false;
       });
     }
   }
@@ -181,6 +223,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
                             onPressed: () {
                               _searchController.clear();
                               setState(() => _searchQuery = '');
+                              _loadProducts();
                             },
                           )
                         : null,
@@ -190,6 +233,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
                     filled: true,
                   ),
                   onChanged: (value) => setState(() => _searchQuery = value),
+                  onSubmitted: (_) => _loadProducts(),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -210,6 +254,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
                             setState(() {
                               _selectedCategory = category == 'All' ? null : category;
                             });
+                            _loadProducts();
                           },
                           selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
                           checkmarkColor: theme.colorScheme.primary,
@@ -259,6 +304,7 @@ class _MarketplacePageState extends State<MarketplacePage> {
                         : RefreshIndicator(
                             onRefresh: _loadProducts,
                             child: GridView.builder(
+                              controller: _scrollController,
                               padding: const EdgeInsets.all(16),
                               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 2,
@@ -266,8 +312,16 @@ class _MarketplacePageState extends State<MarketplacePage> {
                                 crossAxisSpacing: 12,
                                 childAspectRatio: 0.7,
                               ),
-                              itemCount: _filteredProducts.length,
+                              itemCount: _filteredProducts.length + (_hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
+                                if (index >= _filteredProducts.length) {
+                                  return const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
                                 final product = _filteredProducts[index];
                                 return _ProductCard(product: product);
                               },
