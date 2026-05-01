@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:aurora/storage/userStorage.dart';
+import 'package:aurora/users/account_type.dart';
 import 'package:aurora/gen_l10n/app_localizations.dart';
 import './widgets/drawer.dart';
+import './widgets/customer_drawer.dart';
 
 class Homepapge extends StatefulWidget {
   const Homepapge({super.key});
@@ -35,13 +37,23 @@ class _HomepapgeState extends State<Homepapge> {
     }
   }
 
+  Widget _buildDrawer() {
+    final userStorage = Provider.of<UserStorage>(context, listen: false);
+    final accountType = userStorage.accountType;
+    
+    if (accountType == AccountType.customser) {
+      return const CustomerDrawer();
+    }
+    return const FixidDrawer();
+  }
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context)!;
     return Scaffold(
       drawerEdgeDragWidth: double.infinity,
       drawerEnableOpenDragGesture: true,
-      drawer: const FixidDrawer(),
+      drawer: _buildDrawer(),
       appBar: AppBar(
         title: const Text('A U R O R A'),
         centerTitle: true,

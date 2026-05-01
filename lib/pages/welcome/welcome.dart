@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:aurora/pages/auth/sellers/login.dart';
 import 'package:aurora/pages/auth/factories/login.dart';
+import 'package:aurora/pages/auth/customers/login.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -38,12 +39,31 @@ class WelcomePage extends StatelessWidget {
                       'Choose your account type to continue',
                       style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                     ),
-                    const SizedBox(height: 72),
+                    const SizedBox(height: 48),
+                    _buildOptionButton(
+                      context,
+                      icon: Icons.person,
+                      title: 'Customer',
+                      subtitle: 'I want to buy products',
+                      color: Colors.teal,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const CustomerLoginPage()),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(height: 32),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Or register as a business',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 16),
                     _buildOptionButton(
                       context,
                       icon: Icons.store,
                       title: 'Seller',
                       subtitle: 'I want to sell products',
+                      color: const Color(0xFF6366F1),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const LoginPage()),
                       ),
@@ -54,6 +74,7 @@ class WelcomePage extends StatelessWidget {
                       icon: Icons.factory,
                       title: 'Factory',
                       subtitle: 'I manufacture products',
+                      color: Colors.orange,
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const FactoryLoginPage(),
@@ -76,6 +97,7 @@ class WelcomePage extends StatelessWidget {
     required IconData icon,
     required String title,
     required String subtitle,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return Card(
@@ -89,10 +111,10 @@ class WelcomePage extends StatelessWidget {
         leading: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: const Color(0xFF6366F1), size: 32),
+          child: Icon(icon, color: color, size: 32),
         ),
         title: Text(
           title,

@@ -4,6 +4,7 @@ import 'package:aurora/gen_l10n/app_localizations.dart';
 import 'package:aurora/storage/userStorage.dart';
 import 'package:aurora/users/account_type.dart';
 import 'package:aurora/pages/chat/chat_list_page.dart';
+import 'package:aurora/providers/cart_provider.dart';
 
 class FixidDrawer extends StatelessWidget {
   const FixidDrawer({super.key});
@@ -271,6 +272,83 @@ class FixidDrawer extends StatelessWidget {
                 const Divider(height: 1),
                 const SizedBox(height: 8),
                 _buildDrawerItem(
+                  icon: Icons.shopping_bag_outlined,
+                  title: 'Go Shopping',
+                  isActive: ModalRoute.of(context)?.settings.name == '/marketplace',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).pushNamed('/marketplace');
+                  },
+                ),
+                const SizedBox(height: 8),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+                _buildDrawerSectionHeader('CUSTOMER VIEW'),
+                _buildDrawerItem(
+                  icon: Icons.storefront_outlined,
+                  title: 'Customer Home',
+                  iconColor: Colors.teal,
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).pushNamed('/customer-home');
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.shopping_bag_outlined,
+                  title: 'Browse Products',
+                  iconColor: Colors.orange,
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).pushNamed('/marketplace');
+                  },
+                ),
+                Consumer<CartProvider>(
+                  builder: (context, cart, _) {
+                    return _buildDrawerItem(
+                      icon: Icons.shopping_cart_outlined,
+                      title: 'My Cart',
+                      iconColor: Colors.blue,
+                      badge: cart.itemCount > 0 ? '${cart.itemCount}' : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).pushNamed('/cart');
+                      },
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'My Orders',
+                  iconColor: Colors.purple,
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).pushNamed('/customer-orders');
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.location_on_outlined,
+                  title: 'Addresses',
+                  iconColor: Colors.green,
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).pushNamed('/customer-addresses');
+                  },
+                ),
+                Consumer<CartProvider>(
+                  builder: (context, cart, _) {
+                    return _buildDrawerItem(
+                      icon: Icons.shopping_cart_outlined,
+                      title: 'My Cart',
+                      badge: cart.itemCount > 0 ? '${cart.itemCount}' : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).pushNamed('/cart');
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildDrawerItem(
                   icon: Icons.settings_rounded,
                   title: localizations.settings,
                   isActive: ModalRoute.of(context)?.settings.name == '/settings',
@@ -356,6 +434,7 @@ class FixidDrawer extends StatelessWidget {
     required VoidCallback onTap,
     bool isActive = false,
     String? badge,
+    Color? iconColor,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -374,13 +453,15 @@ class FixidDrawer extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: isActive ? Colors.blue.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.1),
+                    color: isActive 
+                        ? Colors.blue.withValues(alpha: 0.15) 
+                        : (iconColor?.withValues(alpha: 0.1) ?? Colors.grey.withValues(alpha: 0.1)),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     icon,
                     size: 22,
-                    color: isActive ? Colors.blue[700] : Colors.grey[700],
+                    color: isActive ? Colors.blue[700] : (iconColor ?? Colors.grey[700]),
                   ),
                 ),
                 const SizedBox(width: 14),
