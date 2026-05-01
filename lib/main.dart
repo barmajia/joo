@@ -31,8 +31,11 @@ import 'package:aurora/pages/customers/customer_orders_page.dart';
 import 'package:aurora/pages/customers/customer_addresses_page.dart';
 import 'package:aurora/pages/customers/customer_profile_page.dart';
 import 'package:aurora/pages/customers/customer_settings_page.dart';
+import 'package:aurora/pages/customer_security_page.dart';
 import 'package:aurora/providers/cart_provider.dart';
+import 'package:aurora/providers/auth_state_provider.dart';
 import 'package:aurora/services/app_logger.dart';
+import 'package:aurora/pages/auth_wrapper.dart';
 import 'package:aurora/theme/theme_provider.dart';
 import 'package:aurora/locale/locale_provider.dart';
 import 'package:aurora/gen_l10n/app_localizations.dart';
@@ -86,6 +89,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => UserStorage()),
         ChangeNotifierProvider(create: (_) => ApiService()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => AuthStateProvider()),
       ],
       child: const AuroraApp(),
     ),
@@ -161,8 +165,9 @@ class AuroraApp extends StatelessWidget {
         '/customer-addresses': (context) => const CustomerAddressesPage(),
         '/customer-profile': (context) => const CustomerProfilePage(),
         '/customer-settings': (context) => const CustomerSettingsPage(),
+        '/auth-wrapper': (context) => const AuthWrapper(),
       },
-      home: const AppLockScreen(child: SplashScreen()),
+      home: const AppLockScreen(child: AuthWrapper()),
     );
   }
 }
