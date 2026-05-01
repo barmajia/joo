@@ -12,11 +12,11 @@ class Storage {
     _isInitialized = true;
   }
 
-  static Future<void> _saveString(String key, String value) async {
+  static Future<void> saveString(String key, String value) async {
     await _prefs.setString(key, value);
   }
 
-  static Future<String?> _getString(String key) async {
+  static Future<String?> getString(String key) async {
     try {
       return _prefs.getString(key);
     } catch (e) {
@@ -26,6 +26,37 @@ class Storage {
       if (value is bool) return value.toString();
       return null;
     }
+  }
+
+  static Future<void> _saveString(String key, String value) async {
+    await saveString(key, value);
+  }
+
+  static Future<String?> _getString(String key) async {
+    return getString(key);
+  }
+
+  /// Generic method to save data as JSON
+  static Future<void> saveData(String key, dynamic value) async {
+    final jsonString = jsonEncode(value);
+    await _saveString(key, jsonString);
+  }
+
+  /// Generic method to get data and decode JSON
+  static Future<T?> getData<T>(String key) async {
+    final jsonString = await _getString(key);
+    if (jsonString == null || jsonString.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(jsonString);
+      return decoded as T;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Remove data for a key
+  static Future<void> removeData(String key) async {
+    await _prefs.remove(key);
   }
 
   static Future<void> saveThemeIndex(int index) async {

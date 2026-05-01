@@ -1,13 +1,22 @@
+import 'package:aurora/services/product_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/models/analysis/enums.dart';
 import 'package:aurora/storage/order_storage.dart';
+import 'package:aurora/storage/bill_vault_storage.dart';
 
 class OrderService {
   static final OrderService _instance = OrderService._internal();
   factory OrderService() => _instance;
   OrderService._internal();
+
+  BillVaultStorage? _vault;
+
+  Future<BillVaultStorage> _getVault() async {
+    _vault ??= await BillVaultStorage.getInstance();
+    return _vault!;
+  }
 
   Future<List<Order>> fetchOrdersBySeller(String sellerId) async {
     try {
@@ -28,9 +37,14 @@ class OrderService {
       }).toList();
 
       await OrderStorage.saveOrders(orders);
+      final vault = await _getVault();
+      await vault.refreshSellerBills(sellerId, orders);
       return orders;
     } catch (e) {
       debugPrint('[OrderService.fetchOrdersBySeller] Error: $e');
+      final vault = await _getVault();
+      final cached = vault.getSellerBills(sellerId);
+      if (cached.isNotEmpty) return cached;
       return await OrderStorage.getOrders();
     }
   }
@@ -43,7 +57,7 @@ class OrderService {
           .eq('user_id', customerId)
           .order('created_at', ascending: false);
 
-      return response.map((item) {
+      final orders = response.map((item) {
         final orderMap = Map<String, dynamic>.from(item);
         if (orderMap['items'] is List) {
           orderMap['items'] = (orderMap['items'] as List)
@@ -52,13 +66,33 @@ class OrderService {
         }
         return Order.fromMap(orderMap);
       }).toList();
+
+      final vault = await _getVault();
+      await vault.saveCustomerBills(customerId, orders);
+      return orders;
     } catch (e) {
       debugPrint('[OrderService.fetchOrdersByCustomer] Error: $e');
+      final vault = await _getVault();
+      final cached = vault.getCustomerBills(customerId);
+      if (cached.isNotEmpty) return cached;
       return await OrderStorage.getOrdersByCustomer(customerId);
     }
   }
 
   Future<Order?> fetchOrderById(String orderId) async {
+    // Try local storage first (BillVaultStorage)
+    try {
+      final vault = await _getVault();
+      final localBill = vault.getBill(orderId);
+      if (localBill != null) {
+        debugPrint('[OrderService.fetchOrderById] Found order $orderId in local vault');
+        return localBill;
+      }
+    } catch (e) {
+      debugPrint('[OrderService.fetchOrderById] Local vault error: $e');
+    }
+
+    // Try Supabase
     try {
       final response = await Supabase.instance.client
           .from('orders')
@@ -76,10 +110,11 @@ class OrderService {
         return Order.fromMap(orderMap);
       }
     } catch (e) {
-      debugPrint('[OrderService.fetchOrderById] Error: $e');
-      return await OrderStorage.getOrderById(orderId);
+      debugPrint('[OrderService.fetchOrderById] Supabase error: $e');
     }
-    return null;
+
+    // Fallback to OrderStorage
+    return await OrderStorage.getOrderById(orderId);
   }
 
   Future<Order?> createOrder(Order order) async {
@@ -94,21 +129,56 @@ class OrderService {
           .select()
           .maybeSingle();
 
+      Order created;
       if (response != null) {
-        final created = Order.fromMap(response);
+        created = Order.fromMap(response);
 
         if (items.isNotEmpty) {
           await _insertOrderItems(created.id, items);
         }
-
-        await OrderStorage.addOrder(created);
-        return created;
+      } else {
+        created = order;
       }
+
+      await OrderStorage.addOrder(created);
+      final vault = await _getVault();
+      await vault.saveBill(created.id, created);
+
+      // Update seller index
+      await vault.saveCustomerBills(created.userId, []);
+      final existingCustomerBills = vault.getCustomerBills(created.userId);
+      if (!existingCustomerBills.any((o) => o.id == created.id)) {
+        await vault.saveCustomerBills(created.userId, [
+          created,
+          ...existingCustomerBills,
+        ]);
+      }
+
+      return created;
     } catch (e) {
-      debugPrint('[OrderService.createOrder] Error: $e');
-      rethrow;
+      debugPrint(
+        '[OrderService.createOrder] Supabase Error: $e, saving locally',
+      );
+      // Offline-first: save to local storage even if Supabase fails
+      try {
+        await OrderStorage.addOrder(order);
+        final vault = await _getVault();
+        await vault.saveBill(order.id, order);
+
+        final existingCustomerBills = vault.getCustomerBills(order.userId);
+        if (!existingCustomerBills.any((o) => o.id == order.id)) {
+          await vault.saveCustomerBills(order.userId, [
+            order,
+            ...existingCustomerBills,
+          ]);
+        }
+
+        return order;
+      } catch (localError) {
+        debugPrint('[OrderService.createOrder] Local save error: $localError');
+        rethrow;
+      }
     }
-    return null;
   }
 
   Future<Order?> updateOrder(Order order) async {
@@ -133,31 +203,31 @@ class OrderService {
         }
 
         await OrderStorage.updateOrder(updated);
+        final vault = await _getVault();
+        await vault.saveBill(updated.id, updated);
         return updated;
       }
     } catch (e) {
       debugPrint('[OrderService.updateOrder] Error: $e');
       await OrderStorage.updateOrder(order);
+      final vault = await _getVault();
+      await vault.saveBill(order.id, order);
     }
     return order;
   }
 
   Future<void> _insertOrderItems(String orderId, List<OrderItem> items) async {
     try {
-      final itemsData = items
-          .map((item) {
-            final map = item.toMap();
-            map['order_id'] = orderId;
-            if (map['id'] == null || map['id'].toString().isEmpty) {
-              map.remove('id');
-            }
-            return map;
-          })
-          .toList();
+      final itemsData = items.map((item) {
+        final map = item.toMap();
+        map['order_id'] = orderId;
+        if (map['id'] == null || map['id'].toString().isEmpty) {
+          map.remove('id');
+        }
+        return map;
+      }).toList();
 
-      await Supabase.instance.client
-          .from('order_items')
-          .insert(itemsData);
+      await Supabase.instance.client.from('order_items').insert(itemsData);
     } catch (e) {
       debugPrint('[OrderService._insertOrderItems] Error: $e');
       rethrow;
@@ -175,17 +245,113 @@ class OrderService {
     }
   }
 
-  Future<void> deleteOrder(String orderId) async {
+  Future<bool> deleteOrder(String orderId, {bool forceDelete = false, bool keepInBanList = false}) async {
+    debugPrint('[OrderService.deleteOrder] Attempting to delete order: $orderId (force: $forceDelete, keepInBanList: $keepInBanList)');
+    Order? order = await fetchOrderById(orderId);
+
+    if (order == null) {
+      debugPrint('[OrderService.deleteOrder] Order not found: $orderId');
+      return false;
+    }
+
+    debugPrint('[OrderService.deleteOrder] Order found: ${order.id}, isDeletable: ${order.isDeletable}');
+
+    if (!order.isDeletable && !forceDelete) {
+      debugPrint(
+        '[OrderService.deleteOrder] Order $orderId is not deletable (deadline: ${order.deletionDeadline})',
+      );
+      throw Exception('Cannot delete this bill after the deletion deadline');
+    }
+
+    if (forceDelete && !order.isDeletable) {
+      debugPrint(
+        '[OrderService.deleteOrder] Force deleting order $orderId despite deadline',
+      );
+    }
+
+    // Restore product quantities before deleting
+    if (order.items.isNotEmpty) {
+      try {
+        final productService = ProductService();
+        for (final item in order.items) {
+          if (item.productId != null) {
+            try {
+              await productService.restoreQuantity(
+                item.productId!,
+                item.quantity,
+                order.sellerId ?? '',
+              );
+            } catch (e) {
+              debugPrint(
+                '[OrderService.deleteOrder] Failed to restore ${item.productName}: $e',
+              );
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('[OrderService.deleteOrder] Error restoring quantities: $e');
+      }
+    }
+
+    // If keeping in ban list, only delete from active storage but keep in banned storage
+    if (keepInBanList) {
+      try {
+        await _deleteOrderItems(orderId);
+        await Supabase.instance.client.from('orders').delete().eq('id', orderId);
+
+        await OrderStorage.deleteOrder(orderId);
+        final vault = await _getVault();
+        await vault.deleteBill(orderId);
+
+        // Remove from customer bills index (active bills)
+        final customerBills = vault.getCustomerBills(order.userId);
+        customerBills.removeWhere((o) => o.id == orderId);
+        await vault.saveCustomerBills(order.userId, customerBills);
+
+        debugPrint('[OrderService.deleteOrder] Order $orderId deleted from active storage, kept in ban list');
+        return true;
+      } catch (e) {
+        debugPrint('[OrderService.deleteOrder] Error deleting order with keepInBanList: $e');
+        rethrow;
+      }
+    }
+
     try {
       await _deleteOrderItems(orderId);
-      await Supabase.instance.client
-          .from('orders')
-          .delete()
-          .eq('id', orderId);
+      await Supabase.instance.client.from('orders').delete().eq('id', orderId);
+
       await OrderStorage.deleteOrder(orderId);
+      final vault = await _getVault();
+      await vault.deleteBill(orderId);
+
+      // Remove from customer bills index
+      final customerBills = vault.getCustomerBills(order.userId);
+      customerBills.removeWhere((o) => o.id == orderId);
+      await vault.saveCustomerBills(order.userId, customerBills);
+
+      return true;
     } catch (e) {
-      debugPrint('[OrderService.deleteOrder] Error: $e');
-      rethrow;
+      debugPrint(
+        '[OrderService.deleteOrder] Supabase error, deleting locally: $e',
+      );
+
+      // Offline-first: delete locally even if Supabase fails
+      try {
+        await OrderStorage.deleteOrder(orderId);
+        final vault = await _getVault();
+        await vault.deleteBill(orderId);
+
+        final customerBills = vault.getCustomerBills(order.userId);
+        customerBills.removeWhere((o) => o.id == orderId);
+        await vault.saveCustomerBills(order.userId, customerBills);
+
+        return true;
+      } catch (localError) {
+        debugPrint(
+          '[OrderService.deleteOrder] Local delete error: $localError',
+        );
+        rethrow;
+      }
     }
   }
 

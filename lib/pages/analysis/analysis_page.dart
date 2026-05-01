@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:aurora/gen_l10n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/analysis/analytics.dart';
 import 'package:aurora/models/analysis/enums.dart';
+import 'package:aurora/models/analysis/goals/goal_enums.dart';
+import 'package:aurora/models/analysis/goals/seller_goal.dart';
 import 'package:aurora/services/analysis_engine.dart';
+import 'package:aurora/services/performance/insights_engine.dart';
+import 'package:aurora/widgets/analytics/goal_widgets.dart';
+import 'package:aurora/widgets/analytics/insights_panel.dart';
+import 'package:aurora/storage/analysis/goals_storage.dart';
+import 'package:aurora/storage/analysis/insights_storage.dart';
+import 'package:intl/intl.dart';
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
@@ -11,18 +20,78 @@ class AnalysisPage extends StatefulWidget {
   State<AnalysisPage> createState() => _AnalysisPageState();
 }
 
-class _AnalysisPageState extends State<AnalysisPage> {
+class _AnalysisPageState extends State<AnalysisPage>
+    with SingleTickerProviderStateMixin {
   final AnalysisEngine _analysisEngine = AnalysisEngine();
+  final InsightsEngine _insightsEngine = InsightsEngine();
   AnalyticsSnapshot? _snapshot;
   bool _isLoading = true;
   bool _isAnalyzing = false;
   String? _errorMessage;
   PeriodType _selectedPeriod = PeriodType.monthly;
+  int _selectedTabIndex = 0;
+  List<SellerGoal> _goals = [];
+
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_handleTabSelection);
     _loadAnalysis();
+    _loadGoals();
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabSelection);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _handleTabSelection() {
+    setState(() {
+      _selectedTabIndex = _tabController.index;
+    });
+  }
+
+  Future<void> _loadGoals() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      final goals = await GoalsStorage.getGoals(user.id);
+      setState(() {
+        _goals = goals;
+      });
+    } catch (e) {
+      debugPrint('[AnalysisPage._loadGoals] Error: $e');
+    }
+  }
+
+  Future<void> _generateInsights() async {
+    if (_snapshot == null) return;
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      await _insightsEngine.generateInsights(
+        sellerId: user.id,
+        snapshot: _snapshot!,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.newInsightsGenerated),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AnalysisPage._generateInsights] Error: $e');
+    }
   }
 
   Future<void> _loadAnalysis() async {
@@ -36,7 +105,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       if (user == null) {
         if (!mounted) return;
         setState(() {
-          _errorMessage = 'User not authenticated';
+          _errorMessage = AppLocalizations.of(context)!.userNotAuthenticated;
           _isLoading = false;
         });
         return;
@@ -86,7 +155,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Analysis complete')),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.analysisComplete),
+          ),
         );
       }
     } catch (e) {
@@ -94,9 +165,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
       if (!mounted) return;
       setState(() => _isAnalyzing = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -105,19 +176,53 @@ class _AnalysisPageState extends State<AnalysisPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sales Analysis'),
+        title: Text(AppLocalizations.of(context)!.salesAnalysis),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(
+              icon: const Icon(Icons.analytics),
+              text: AppLocalizations.of(context)!.analytics,
+            ),
+            Tab(
+              icon: const Icon(Icons.lightbulb_outline),
+              text: AppLocalizations.of(context)!.insights,
+            ),
+            Tab(
+              icon: const Icon(Icons.flag),
+              text: AppLocalizations.of(context)!.goals,
+            ),
+          ],
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _isAnalyzing ? null : _runNewAnalysis,
-          ),
+          if (_selectedTabIndex == 0) ...[
+            IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              onPressed: _snapshot != null ? _generateInsights : null,
+              tooltip: AppLocalizations.of(context)!.generateInsights,
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _isAnalyzing ? null : _runNewAnalysis,
+              tooltip: AppLocalizations.of(context)!.refreshAnalysis,
+            ),
+          ],
+          if (_selectedTabIndex == 2)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _showCreateGoalDialog(),
+              tooltip: AppLocalizations.of(context)!.createGoal,
+            ),
         ],
       ),
-      body: _buildBody(),
+      body: TabBarView(
+        controller: _tabController,
+        children: [_buildAnalyticsTab(), _buildInsightsTab(), _buildGoalsTab()],
+      ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildAnalyticsTab() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -131,7 +236,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadAnalysis,
-              child: const Text('Retry'),
+              child: Text(AppLocalizations.of(context)!.retry),
             ),
           ],
         ),
@@ -145,34 +250,366 @@ class _AnalysisPageState extends State<AnalysisPage> {
           children: [
             const Icon(Icons.analytics_outlined, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text(
-              'No analysis data available',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+            Text(
+              AppLocalizations.of(context)!.noAnalysisData,
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _runNewAnalysis,
-              child: const Text('Run Analysis'),
+              child: Text(AppLocalizations.of(context)!.runAnalysis),
             ),
           ],
         ),
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildPeriodSelector(),
-        const SizedBox(height: 16),
-        _buildKPIs(),
-        const SizedBox(height: 16),
-        _buildTopProducts(),
-        const SizedBox(height: 16),
-        _buildTopCustomers(),
-        const SizedBox(height: 16),
-        _buildDailyBreakdown(),
-      ],
+    return RefreshIndicator(
+      onRefresh: _runNewAnalysis,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildPeriodSelector(),
+          const SizedBox(height: 16),
+          _buildKPIs(),
+          const SizedBox(height: 16),
+          _buildSmarterAnalytics(),
+          const SizedBox(height: 16),
+          _buildTopProducts(),
+          const SizedBox(height: 16),
+          _buildTopCustomers(),
+          const SizedBox(height: 16),
+          _buildDailyBreakdown(),
+        ],
+      ),
     );
+  }
+
+  Widget _buildInsightsTab() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      return Center(child: Text(AppLocalizations.of(context)!.pleaseLogin));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppLocalizations.of(context)!.actionableInsights,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _generateInsights,
+                tooltip: AppLocalizations.of(context)!.refreshAnalysis,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: InsightsPanel(
+              sellerId: user.id,
+              onDismissInsight: _loadAnalysis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalsTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppLocalizations.of(context)!.yourGoals,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            AppLocalizations.of(context)!.trackGoals,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 16),
+          if (_goals.isEmpty)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.flag_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      AppLocalizations.of(context)!.noGoalsYet,
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      AppLocalizations.of(context)!.createFirstGoal,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[500]),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () => _showCreateGoalDialog(),
+                      icon: const Icon(Icons.add),
+                      label: Text(AppLocalizations.of(context)!.createGoalBtn),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.separated(
+                itemCount: _goals.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  return GoalProgressCard(
+                    goal: _goals[index],
+                    onTap: () => _showGoalDetails(_goals[index]),
+                    onEdit: () => _showEditGoalDialog(_goals[index]),
+                    onDelete: () => _deleteGoal(_goals[index]),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showCreateGoalDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => CreateGoalDialog(onSave: _saveGoal),
+    );
+  }
+
+  Future<void> _saveGoal(SellerGoal goal) async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      // Update seller ID
+      final updatedGoal = goal.copyWith(sellerId: user.id);
+      await GoalsStorage.saveGoal(updatedGoal);
+      await _loadGoals();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context)!.goalCreated)),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AnalysisPage._saveGoal] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to create goal')));
+      }
+    }
+  }
+
+  void _showEditGoalDialog(SellerGoal goal) {
+    showDialog(
+      context: context,
+      builder: (context) => CreateGoalDialog(
+        onSave: (updatedGoal) => _updateGoal(goal, updatedGoal),
+      ),
+    );
+  }
+
+  Future<void> _updateGoal(SellerGoal oldGoal, SellerGoal newGoal) async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      final updatedGoal = newGoal.copyWith(
+        id: oldGoal.id,
+        sellerId: user.id,
+        currentValue: oldGoal.currentValue,
+      );
+      await GoalsStorage.saveGoal(updatedGoal);
+      await _loadGoals();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context)!.goalUpdated)),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AnalysisPage._updateGoal] Error: $e');
+    }
+  }
+
+  Future<void> _deleteGoal(SellerGoal goal) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppLocalizations.of(context)!.deleteGoal),
+        content: Text(
+          '${AppLocalizations.of(context)!.deleteGoalConfirm} "${goal.type.displayName}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(AppLocalizations.of(context)!.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(AppLocalizations.of(context)!.delete),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await GoalsStorage.deleteGoal(goal.id);
+        await _loadGoals();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context)!.goalDeleted)),
+          );
+        }
+      } catch (e) {
+        debugPrint('[AnalysisPage._deleteGoal] Error: $e');
+      }
+    }
+  }
+
+  void _showGoalDetails(SellerGoal goal) {
+    final l10n = AppLocalizations.of(context)!;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(goal.type.displayName),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (goal.description != null) ...[
+                Text(
+                  '${l10n.description}:',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(goal.description!),
+                const SizedBox(height: 16),
+              ],
+              _buildDetailRow(
+                l10n.target,
+                _formatGoalValue(goal.targetValue, goal.type),
+              ),
+              _buildDetailRow(
+                l10n.current,
+                _formatGoalValue(goal.currentValue, goal.type),
+              ),
+              _buildDetailRow(
+                l10n.progress,
+                '${goal.progressPercentage.toStringAsFixed(1)}%',
+              ),
+              _buildDetailRow(
+                l10n.dailyNeed,
+                _formatGoalValue(goal.dailyTargetNeeded, goal.type),
+              ),
+              _buildDetailRow(l10n.startDate, _formatDate(goal.startDate)),
+              _buildDetailRow(l10n.endDate, _formatDate(goal.endDate)),
+              _buildDetailRow(
+                '${goal.daysRemaining} ${l10n.daysRemaining}',
+                '',
+              ),
+              if (goal.isAchieved) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.emoji_events, color: Colors.amber),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.goalAchieved,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.close),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  String _formatGoalValue(double value, GoalType type) {
+    switch (type) {
+      case GoalType.revenue:
+      case GoalType.averageOrderValue:
+        return 'EGP ${value.toStringAsFixed(2)}';
+      case GoalType.conversionRate:
+      case GoalType.retentionRate:
+        return '${value.toStringAsFixed(1)}%';
+      default:
+        return value.toStringAsFixed(0);
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Widget _buildPeriodSelector() {
@@ -181,7 +618,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            const Text('Period:', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              'Period:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: DropdownButton<PeriodType>(
@@ -208,7 +648,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Widget _buildKPIs() {
-    final kpis = _snapshot!.analyticsData['kpis'] as Map<String, dynamic>? ?? {};
+    final l10n = AppLocalizations.of(context)!;
+    final kpis =
+        _snapshot!.analyticsData['kpis'] as Map<String, dynamic>? ?? {};
 
     return Card(
       child: Padding(
@@ -216,17 +658,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Key Metrics',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              l10n.keyMetrics,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: _buildMetricCard(
-                    'Revenue',
-                    '\$${(kpis['total_revenue'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                    l10n.revenue,
+                    'EGP ${(kpis['total_revenue'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
                     Icons.attach_money,
                     Colors.green,
                   ),
@@ -234,7 +676,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _buildMetricCard(
-                    'Orders',
+                    l10n.orders,
                     '${kpis['total_orders'] ?? 0}',
                     Icons.shopping_cart,
                     Colors.blue,
@@ -247,7 +689,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               children: [
                 Expanded(
                   child: _buildMetricCard(
-                    'Items Sold',
+                    l10n.itemsSold,
                     '${kpis['total_items_sold'] ?? 0}',
                     Icons.inventory,
                     Colors.orange,
@@ -256,8 +698,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _buildMetricCard(
-                    'Avg Order',
-                    '\$${(kpis['average_order_value'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                    l10n.avgOrder,
+                    'EGP ${(kpis['average_order_value'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
                     Icons.trending_up,
                     Colors.purple,
                   ),
@@ -295,23 +737,21 @@ class _AnalysisPageState extends State<AnalysisPage> {
               color: color,
             ),
           ),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
     );
   }
 
   Widget _buildTopProducts() {
+    final l10n = AppLocalizations.of(context)!;
     final products = _snapshot!.topProducts;
 
     if (products.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('No product data available'),
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.noProductData),
         ),
       );
     }
@@ -322,9 +762,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Top Products',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              l10n.topProducts,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...products.take(5).map((product) {
@@ -334,10 +774,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   backgroundColor: Colors.blue.shade100,
                   child: Text('${products.indexOf(product) + 1}'),
                 ),
-                title: Text(product['title'] ?? 'Unknown'),
-                subtitle: Text('Qty: ${product['quantity'] ?? 0}'),
+                title: Text(product['title'] ?? l10n.unknown),
+                subtitle: Text('${l10n.quantity}: ${product['quantity'] ?? 0}'),
                 trailing: Text(
-                  '\$${(product['revenue'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                  'EGP ${(product['revenue'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.green,
@@ -351,14 +791,155 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
+  Widget _buildSmarterAnalytics() {
+    final kpis =
+        _snapshot!.analyticsData['kpis'] as Map<String, dynamic>? ?? {};
+    final bestCategories = _listFromAnalytics('best_categories');
+    final worstCategories = _listFromAnalytics('worst_categories');
+    final dealPerformance = _listFromAnalytics('deal_performance');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Smart analytics',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    'Profit',
+                    'EGP ${_num(kpis['gross_profit']).toStringAsFixed(2)}',
+                    Icons.savings,
+                    Colors.teal,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricCard(
+                    'Margin',
+                    '${_num(kpis['profit_margin']).toStringAsFixed(1)}%',
+                    Icons.percent,
+                    Colors.indigo,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricCard(
+                    'Retention',
+                    '${_num(kpis['customer_retention_rate']).toStringAsFixed(1)}%',
+                    Icons.people_alt,
+                    Colors.deepOrange,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildMetricCard(
+                    '30-day forecast',
+                    'EGP ${_num(kpis['forecasted_monthly_revenue']).toStringAsFixed(0)}',
+                    Icons.trending_up,
+                    Colors.cyan,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildCategorySummary('Best categories', bestCategories),
+            const SizedBox(height: 8),
+            _buildCategorySummary('Worst categories', worstCategories),
+            const SizedBox(height: 8),
+            _buildDealSummary(dealPerformance),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategorySummary(String title, List<Map<String, dynamic>> data) {
+    if (data.isEmpty) {
+      return Text(
+        '$title: no data yet',
+        style: TextStyle(color: Colors.grey[600]),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        ...data.take(3).map((category) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(category['category']?.toString() ?? 'Unknown'),
+              ),
+              Text('EGP ${_num(category['revenue']).toStringAsFixed(2)}'),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildDealSummary(List<Map<String, dynamic>> data) {
+    if (data.isEmpty) {
+      return Text(
+        'Deal performance: no deal orders yet',
+        style: TextStyle(color: Colors.grey[600]),
+      );
+    }
+
+    final topDeal = data.first;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            'Top deal ${topDeal['deal_id']}',
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          '${topDeal['orders']} orders - EGP ${_num(topDeal['revenue']).toStringAsFixed(2)}',
+        ),
+      ],
+    );
+  }
+
+  List<Map<String, dynamic>> _listFromAnalytics(String key) {
+    final value = _snapshot!.analyticsData[key];
+    if (value is List) {
+      return value.whereType<Map<String, dynamic>>().toList();
+    }
+    return [];
+  }
+
+  double _num(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0;
+    return 0;
+  }
+
   Widget _buildTopCustomers() {
+    final l10n = AppLocalizations.of(context)!;
     final customers = _snapshot!.topCustomers;
 
     if (customers.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('No customer data available'),
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.noCustomerData),
         ),
       );
     }
@@ -369,20 +950,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Top Customers',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              l10n.topCustomers,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...customers.take(5).map((customer) {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(
-                  child: Icon(Icons.person),
-                ),
-                title: Text('Customer ${customer['customer_id']}'),
+                leading: const CircleAvatar(child: Icon(Icons.person)),
+                title: Text('${l10n.customer} ${customer['customer_id']}'),
                 trailing: Text(
-                  '${customer['order_count']} orders',
+                  '${customer['order_count']} ${l10n.orders}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               );
@@ -394,13 +973,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
   }
 
   Widget _buildDailyBreakdown() {
+    final l10n = AppLocalizations.of(context)!;
     final daily = _snapshot!.dailyBreakdown;
 
     if (daily.isEmpty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('No daily breakdown available'),
+          padding: const EdgeInsets.all(16),
+          child: Text(l10n.noDailyBreakdown),
         ),
       );
     }
@@ -411,9 +991,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Daily Breakdown',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              l10n.dailyBreakdown,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...daily.map((day) {
@@ -424,10 +1004,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   children: [
                     Text(day['date'] ?? ''),
                     Text(
-                      '\$${(day['revenue'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                      'EGP ${(day['revenue'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    Text('${day['orders'] ?? 0} orders'),
+                    Text('${day['orders'] ?? 0} ${l10n.orders}'),
                   ],
                 ),
               );

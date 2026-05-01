@@ -74,7 +74,7 @@ class _DealsPageState extends State<DealsPage> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: DropdownButtonFormField<String>(
-              value: _selectedCategoryId,
+              initialValue: _selectedCategoryId,
               decoration: const InputDecoration(
                 labelText: 'Filter by Category',
                 border: OutlineInputBorder(),
@@ -270,19 +270,16 @@ class _AddDealPageState extends State<AddDealPage> {
           child: Column(
             children: [
               DropdownButtonFormField<String>(
-                value: _selectedProductId,
+                initialValue: _selectedProductId,
                 decoration: const InputDecoration(labelText: 'Product'),
                 items: _products.map((p) {
-                  return DropdownMenuItem(
-                    value: p.id,
-                    child: Text(p.title ?? 'Untitled'),
-                  );
+                  return DropdownMenuItem(value: p.id, child: Text(p.title));
                 }).toList(),
                 onChanged: (v) => setState(() => _selectedProductId = v),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _selectedCategoryId,
+                initialValue: _selectedCategoryId,
                 decoration: const InputDecoration(
                   labelText: 'Category (Optional)',
                 ),
@@ -303,7 +300,7 @@ class _AddDealPageState extends State<AddDealPage> {
               const SizedBox(height: 16),
               if (_selectedCategoryId != null)
                 DropdownButtonFormField<String>(
-                  value: _selectedSubcategory,
+                  initialValue: _selectedSubcategory,
                   decoration: const InputDecoration(labelText: 'Subcategory'),
                   items:
                       ProductCategories.getSubcategories(_selectedCategoryId!)
@@ -315,7 +312,7 @@ class _AddDealPageState extends State<AddDealPage> {
                 ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _dealType,
+                initialValue: _dealType,
                 decoration: const InputDecoration(labelText: 'Deal Type'),
                 items: const [
                   DropdownMenuItem(

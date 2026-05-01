@@ -1,12 +1,22 @@
 import 'package:flutter/widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/models/customers/customermodel.dart';
+import 'package:aurora/models/customers/customerbill.dart';
 import 'package:aurora/storage/customer_storage.dart';
+import 'package:aurora/storage/customer_vault_storage.dart';
+import 'package:aurora/storage/banned_customer_storage.dart';
 
 class CustomerService {
   static final CustomerService _instance = CustomerService._internal();
   factory CustomerService() => _instance;
   CustomerService._internal();
+
+  CustomerVaultStorage? _vault;
+
+  Future<CustomerVaultStorage> _getVault() async {
+    _vault ??= await CustomerVaultStorage.getInstance();
+    return _vault!;
+  }
 
   Future<List<Customer>> fetchCustomers(String sellerId) async {
     try {
@@ -16,14 +26,27 @@ class CustomerService {
           .eq('seller_id', sellerId)
           .order('created_at', ascending: false);
 
-      final customers = response
-          .map((item) => Customer.fromMap(item as Map<String, dynamic>))
-          .toList();
+      final customers = response.map((item) => Customer.fromMap(item)).toList();
 
-      await CustomerStorage.saveCustomers(customers);
-      return customers;
+      final vault = await _getVault();
+
+      if (customers.isNotEmpty) {
+        await CustomerStorage.saveCustomers(customers);
+        await vault.refreshSellerCustomers(sellerId, customers);
+        return customers;
+      }
+
+      // Supabase returned empty, try vault cache
+      final cached = vault.getSellerCustomers(sellerId);
+      if (cached.isNotEmpty) return cached;
+
+      // Fall back to shared preferences
+      return await CustomerStorage.getCustomers();
     } catch (e) {
       debugPrint('[CustomerService.fetchCustomers] Error: $e');
+      final vault = await _getVault();
+      final cached = vault.getSellerCustomers(sellerId);
+      if (cached.isNotEmpty) return cached;
       return await CustomerStorage.getCustomers();
     }
   }
@@ -54,17 +77,42 @@ class CustomerService {
           .select()
           .maybeSingle();
 
-      if (response != null) {
-        final newCustomer = Customer.fromMap(response);
-        await CustomerStorage.addCustomer(newCustomer);
-        return newCustomer;
+      final savedCustomer = response != null
+          ? Customer.fromMap(response)
+          : customer;
+
+      await CustomerStorage.addCustomer(savedCustomer);
+      final vault = await _getVault();
+      await vault.saveCustomer(savedCustomer.id, savedCustomer);
+
+      // Update seller index
+      final sellerId = savedCustomer.sellerId;
+      if (sellerId.isNotEmpty) {
+        final existing = vault.getSellerCustomers(sellerId);
+        if (!existing.any((c) => c.id == savedCustomer.id)) {
+          final updated = [savedCustomer, ...existing];
+          await vault.saveSellerCustomers(sellerId, updated);
+        }
       }
+
+      return savedCustomer;
     } catch (e) {
       debugPrint('[CustomerService.createCustomer] Error: $e');
-      // fallback to local
       await CustomerStorage.addCustomer(customer);
+      final vault = await _getVault();
+      await vault.saveCustomer(customer.id, customer);
+
+      final sellerId = customer.sellerId;
+      if (sellerId.isNotEmpty) {
+        final existing = vault.getSellerCustomers(sellerId);
+        if (!existing.any((c) => c.id == customer.id)) {
+          final updated = [customer, ...existing];
+          await vault.saveSellerCustomers(sellerId, updated);
+        }
+      }
+
+      return customer;
     }
-    return customer;
   }
 
   Future<Customer?> updateCustomer(Customer customer) async {
@@ -76,16 +124,42 @@ class CustomerService {
           .select()
           .maybeSingle();
 
-      if (response != null) {
-        final updated = Customer.fromMap(response);
-        await CustomerStorage.updateCustomer(updated);
-        return updated;
+      final updated = response != null ? Customer.fromMap(response) : customer;
+
+      await CustomerStorage.updateCustomer(updated);
+      final vault = await _getVault();
+      await vault.saveCustomer(updated.id, updated);
+
+      // Update seller index
+      final sellerId = updated.sellerId;
+      if (sellerId.isNotEmpty) {
+        final existing = vault.getSellerCustomers(sellerId);
+        final index = existing.indexWhere((c) => c.id == updated.id);
+        if (index != -1) {
+          existing[index] = updated;
+          await vault.saveSellerCustomers(sellerId, existing);
+        }
       }
+
+      return updated;
     } catch (e) {
       debugPrint('[CustomerService.updateCustomer] Error: $e');
       await CustomerStorage.updateCustomer(customer);
+      final vault = await _getVault();
+      await vault.saveCustomer(customer.id, customer);
+
+      final sellerId = customer.sellerId;
+      if (sellerId.isNotEmpty) {
+        final existing = vault.getSellerCustomers(sellerId);
+        final index = existing.indexWhere((c) => c.id == customer.id);
+        if (index != -1) {
+          existing[index] = customer;
+          await vault.saveSellerCustomers(sellerId, existing);
+        }
+      }
+
+      return customer;
     }
-    return customer;
   }
 
   Future<void> deleteCustomer(String customerId) async {
@@ -95,9 +169,84 @@ class CustomerService {
           .delete()
           .eq('id', customerId);
       await CustomerStorage.deleteCustomer(customerId);
+      final vault = await _getVault();
+      await vault.deleteCustomer(customerId);
     } catch (e) {
       debugPrint('[CustomerService.deleteCustomer] Error: $e');
       rethrow;
+    }
+  }
+
+  Future<void> banCustomer(String customerId, List<Order> bills) async {
+    try {
+      final vault = await _getVault();
+      final customer = vault.getCustomer(customerId);
+      if (customer == null) {
+        debugPrint('[CustomerService.banCustomer] Customer not found: $customerId');
+        return;
+      }
+
+      final bannedStorage = await _getBannedStorage();
+      await bannedStorage.banCustomer(customerId, customer, bills);
+
+      await Supabase.instance.client
+          .from('customers')
+          .delete()
+          .eq('id', customerId);
+      await CustomerStorage.deleteCustomer(customerId);
+      await vault.deleteCustomer(customerId);
+
+      debugPrint('[CustomerService.banCustomer] Customer $customerId banned with ${bills.length} bills');
+    } catch (e) {
+      debugPrint('[CustomerService.banCustomer] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<bool> isCustomerBanned(String customerId) async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      return await bannedStorage.isCustomerBanned(customerId);
+    } catch (e) {
+      debugPrint('[CustomerService.isCustomerBanned] Error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Customer>> getBannedCustomers() async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      return await bannedStorage.getAllBannedCustomers();
+    } catch (e) {
+      debugPrint('[CustomerService.getBannedCustomers] Error: $e');
+      return [];
+    }
+  }
+
+  BannedCustomerStorage? _bannedStorage;
+  Future<BannedCustomerStorage> _getBannedStorage() async {
+    _bannedStorage ??= await BannedCustomerStorage.getInstance();
+    return _bannedStorage!;
+  }
+
+  Future<void> unbanCustomer(String customerId) async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      await bannedStorage.unbanCustomer(customerId);
+      debugPrint('[CustomerService.unbanCustomer] Customer $customerId unbanned');
+    } catch (e) {
+      debugPrint('[CustomerService.unbanCustomer] Error: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Order>> getBannedCustomerBills(String customerId) async {
+    try {
+      final bannedStorage = await _getBannedStorage();
+      return bannedStorage.getBannedCustomerBills(customerId);
+    } catch (e) {
+      debugPrint('[CustomerService.getBannedCustomerBills] Error: $e');
+      return [];
     }
   }
 

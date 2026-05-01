@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/users/account_type.dart';
 import 'package:aurora/storage/userStorage.dart';
@@ -53,7 +54,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final userStorage = UserStorage();
+      final userStorage = Provider.of<UserStorage>(context, listen: false);
       await userStorage.loadUser(AccountType.seller);
 
       if (!mounted) return;
@@ -63,6 +64,13 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.of(context).pushReplacementNamed('/home');
     } catch (e) {
+      if (mounted) {
+        await Provider.of<UserStorage>(
+          context,
+          listen: false,
+        ).clearAuthenticatedVault();
+      }
+      await Supabase.instance.client.auth.signOut();
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

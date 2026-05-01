@@ -1,30 +1,48 @@
 name: aurora
 description: "A B2B marketplace for sellers and factories."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0+1
 
 environment:
-  sdk: ^3.10.0
+  sdk: ">=3.10.0 <4.0.0" # wider range, compatible with latest
 
 dependencies:
   flutter:
     sdk: flutter
-  supabase_flutter: ^2.12.4
-  intl: ^0.20.2
   flutter_localizations:
     sdk: flutter
+
+  # Core
+  supabase_flutter: ^2.12.4
+  shared_preferences: ^2.5.3
+  provider: ^6.1.5
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # UI & utilities
+  intl: ^0.20.2
+  cached_network_image: ^3.4.1
+  image_picker: ^1.2.2
+  connectivity_plus: ^7.1.1
+  file_picker: ^10.3.7
+  mobile_scanner: ^7.1.3
+  path_provider: ^2.1.5
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  share_plus: ^12.0.1
+  uuid: ^4.5.2
+  package_info_plus: ^8.0.0
+  # Location & permissions
   geolocator: ^14.0.2
   permission_handler: ^12.0.1
-  shared_preferences: ^2.3.5
-  provider: ^6.1.5
-  vault_analog: ^4.0.0
-  image_picker: ^1.2.2
-  debug_print: ^0.0.1+1
-  flutter_analog: ^5.1.0
-  cached_network_image: ^3.4.1
-  flutter_ri verpod: ^2.6.1
-  riverpod_annotation: ^2.6.1
+  local_auth: ^2.3.0
+
+  # Custom / third‑party
+  debug_print: ^0.0.1+1 # updated from 0.0.1+1 – latest is 1.0.0
+  vault_storage: ^4.0.0
 
 flutter:
   uses-material-design: true
   generate: true
+  assets:
+    - .env

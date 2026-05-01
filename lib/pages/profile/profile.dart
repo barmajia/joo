@@ -1,8 +1,11 @@
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:aurora/storage/userStorage.dart';
 import 'package:aurora/users/account_type.dart';
+import 'package:aurora/gen_l10n/app_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -13,38 +16,140 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  bool _isEditing = false;
+
+  late TextEditingController _nameController;
+  late TextEditingController _emailController;
+  late TextEditingController _phoneController;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userStorage = Provider.of<UserStorage>(context, listen: false);
-      userStorage.loadUser(AccountType.seller);
-    });
+    _nameController = TextEditingController();
+    _emailController = TextEditingController();
+    _phoneController = TextEditingController();
   }
 
-  String _getAccountTypeName(AccountType? accountType) {
-    if (accountType == null) return 'Unknown';
-    switch (accountType) {
-      case AccountType.seller:
-        return 'Seller';
-      case AccountType.factory:
-        return 'Factory';
-      case AccountType.customser:
-        return 'Customer';
-      case AccountType.middleman:
-        return 'Middle Man';
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  void _loadUserData() {
+    final userStorage = Provider.of<UserStorage>(context, listen: false);
+    final user = userStorage.currentUser;
+    if (user != null) {
+      _nameController.text = user.name;
+      _emailController.text = user.email;
+      _phoneController.text = user.phonenumber != 0
+          ? user.phonenumber.toString()
+          : '';
     }
   }
 
+  void _toggleEdit() {
+    if (_isEditing) {
+      _saveProfile();
+    } else {
+      setState(() => _isEditing = true);
+      _loadUserData();
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    final userStorage = Provider.of<UserStorage>(context, listen: false);
+    final user = userStorage.currentUser;
+    if (user == null) return;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final authUser = supabase.auth.currentUser;
+      if (authUser == null) return;
+
+      final tableName = userStorage.isFactory ? 'factories' : 'sellers';
+      await supabase
+          .from(tableName)
+          .update({
+            'full_name': _nameController.text.trim(),
+            'phone': _phoneController.text.trim(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', authUser.id);
+
+      if (mounted) {
+        setState(() => _isEditing = false);
+        userStorage.loadUser(userStorage.accountType!);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareProfileSecurely() async {
+    final userStorage = Provider.of<UserStorage>(context, listen: false);
+    final user = userStorage.currentUser;
+    if (user == null) return;
+
+    final data = {
+      'id': user.id.substring(0, min(8, user.id.length)),
+      'name': user.name,
+      'account_type': userStorage.accountType?.name ?? 'unknown',
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+
+    final encoded = base64Encode(utf8.encode(jsonEncode(data)));
+
+    final token = _generateSecureToken(encoded);
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => _ShareDialog(token: token, data: data),
+      );
+    }
+  }
+
+  String _generateSecureToken(String encoded) {
+    final random = Random();
+    final salt = List.generate(
+      4,
+      (i) => random.nextInt(26) + 97,
+    ).map((e) => String.fromCharCode(e)).join();
+    return 'aurora_${salt}_$encoded';
+  }
+
   Future<void> _logout() async {
+    final localizations = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(localizations.logout),
+        content: Text(localizations.logoutConfirm),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Logout')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localizations.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(localizations.logout),
+          ),
         ],
       ),
     );
@@ -52,293 +157,531 @@ class _ProfilePageState extends State<ProfilePage> {
     if (confirm == true && mounted) {
       await Supabase.instance.client.auth.signOut();
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        Navigator.of(context).pushReplacementNamed('/welcome');
       }
     }
   }
 
-  void _copyToClipboard(String text, String label) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard'),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final localizations = AppLocalizations.of(context)!;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(context).pushNamed('/settings'),
-          ),
-        ],
-      ),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Consumer<UserStorage>(
         builder: (context, userStorage, _) {
           final user = userStorage.currentUser;
-          final isSeller = user?.accountType == AccountType.seller;
-          final isFactory = user?.accountType == AccountType.factory;
+          final accountType = userStorage.accountType;
+          final initials = user?.name.isNotEmpty == true
+              ? user!.name[0].toUpperCase()
+              : '?';
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).primaryColor,
-                        Theme.of(context).primaryColor.withValues(alpha: 0.7),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 200,
+                floating: false,
+                pinned: true,
+                actions: [
+                  IconButton(
+                    icon: Icon(_isEditing ? Icons.check : Icons.edit),
+                    onPressed: _toggleEdit,
+                    tooltip: _isEditing
+                        ? localizations.save
+                        : localizations.edit,
                   ),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.white,
-                        child: Text(
-                          user?.name.isNotEmpty == true ? user!.name[0].toUpperCase() : '?',
-                          style: TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).primaryColor,
-                          ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) {
+                      if (value == 'share') _shareProfileSecurely();
+                      if (value == 'logout') _logout();
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'share',
+                        child: ListTile(
+                          leading: const Icon(Icons.share_outlined),
+                          title: Text(localizations.shareProfile),
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      if (user?.id.isNotEmpty == true)
-                        _buildCopyableField(
-                          user!.id,
-                          'UUID',
-                          Icons.fingerprint,
-                        ),
-                      const SizedBox(height: 8),
-                      if (user?.name.isNotEmpty == true)
-                        Text(
-                          user!.name,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      const PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'logout',
+                        child: ListTile(
+                          leading: const Icon(Icons.logout, color: Colors.red),
+                          title: Text(
+                            localizations.logout,
+                            style: const TextStyle(color: Colors.red),
                           ),
-                        ),
-                      const SizedBox(height: 8),
-                      if (user?.email.isNotEmpty == true)
-                        _buildCopyableField(
-                          user!.email,
-                          'Email',
-                          Icons.email,
-                        ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          _getAccountTypeName(user?.accountType),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                     ],
                   ),
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.primaryColor,
+                          theme.primaryColor.withOpacity(0.6),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 40, 20, 16),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 44,
+                                  backgroundColor: Colors.white,
+                                  child: Text(
+                                    initials,
+                                    style: TextStyle(
+                                      fontSize: 34,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.primaryColor,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      _getAccountTypeShort(accountType),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                Padding(
+              ),
+
+              SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (isSeller) ...[
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.store,
-                          title: 'Store Location',
-                          value: user?.metadata?['location'] ?? 'Not set',
+                      _buildSectionHeader(localizations.accountInfo),
+                      _buildInfoTile(
+                        icon: Icons.badge_outlined,
+                        label: localizations.userId,
+                        value: user?.id ?? localizations.notSet,
+                        isCopyable: true,
+                        onTap: () => _copyToClipboard(
+                          user?.id ?? '',
+                          localizations.userId,
                         ),
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.phone,
-                          title: 'Phone Number',
-                          value: user?.phonenumber != 0 ? user!.phonenumber.toString() : 'Not set',
-                        ),
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.shopping_bag,
-                          title: 'Min Order Qty',
-                          value: user?.metadata?['min_order_quantity']?.toString() ?? '1',
-                        ),
-                      ],
-                      if (isFactory) ...[
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.factory,
-                          title: 'Company Name',
-                          value: user?.metadata?['company_name'] ?? 'Not set',
-                        ),
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.location_on,
-                          title: 'Location',
-                          value: user?.metadata?['location'] ?? 'Not set',
-                        ),
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.phone,
-                          title: 'Phone Number',
-                          value: user?.phonenumber != 0 ? user!.phonenumber.toString() : 'Not set',
-                        ),
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.speed,
-                          title: 'Production Capacity',
-                          value: user?.metadata?['production_capacity']?.toString() ?? 'Not set',
-                        ),
-                        _buildModernInfoCard(
-                          context,
-                          icon: Icons.work,
-                          title: 'Specialization',
-                          value: user?.metadata?['specialization'] ?? 'Not set',
-                        ),
-                      ],
-                      _buildModernInfoCard(
-                        context,
-                        icon: Icons.calendar_today,
-                        title: 'Member Since',
-                        value: user?.createdAt.toString().split(' ')[0] ?? 'Unknown',
                       ),
+                      _buildInfoTile(
+                        icon: Icons.email_outlined,
+                        label: localizations.email,
+                        value: user?.email ?? localizations.notSet,
+                        isCopyable: true,
+                        onTap: () => _copyToClipboard(
+                          user?.email ?? '',
+                          localizations.email,
+                        ),
+                      ),
+                      _buildInfoTile(
+                        icon: Icons.calendar_today_outlined,
+                        label: localizations.memberSince,
+                        value: user?.createdAt != null
+                            ? _formatDate(user!.createdAt, localizations)
+                            : localizations.unknown,
+                      ),
+
+                      const SizedBox(height: 20),
+                      _buildSectionHeader(localizations.personalDetails),
+                      if (_isEditing) ...[
+                        _buildEditField(
+                          icon: Icons.person_outlined,
+                          label: localizations.fullName,
+                          controller: _nameController,
+                        ),
+                        _buildEditField(
+                          icon: Icons.phone_outlined,
+                          label: localizations.phone,
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ] else ...[
+                        _buildInfoTile(
+                          icon: Icons.person_outlined,
+                          label: localizations.fullName,
+                          value: user?.name ?? localizations.notSet,
+                        ),
+                        _buildInfoTile(
+                          icon: Icons.phone_outlined,
+                          label: localizations.phone,
+                          value: user?.phonenumber != 0
+                              ? user!.phonenumber.toString()
+                              : localizations.notSet,
+                        ),
+                      ],
+
+                      if (accountType == AccountType.seller) ...[
+                        _buildInfoTile(
+                          icon: Icons.store_outlined,
+                          label: localizations.location,
+                          value:
+                              user?.metadata?['location']?.toString() ??
+                              localizations.notSet,
+                        ),
+                        _buildInfoTile(
+                          icon: Icons.shopping_bag_outlined,
+                          label: localizations.minOrderQty,
+                          value:
+                              user?.metadata?['min_order_quantity']
+                                  ?.toString() ??
+                              '1',
+                        ),
+                      ],
+                      if (accountType == AccountType.factory) ...[
+                        _buildInfoTile(
+                          icon: Icons.factory_outlined,
+                          label: localizations.companyName,
+                          value:
+                              user?.metadata?['company_name']?.toString() ??
+                              localizations.notSet,
+                        ),
+                        _buildInfoTile(
+                          icon: Icons.work_outline,
+                          label: localizations.specialization,
+                          value:
+                              user?.metadata?['specialization']?.toString() ??
+                              localizations.notSet,
+                        ),
+                      ],
+
                       const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _logout,
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Logout'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      _buildSectionHeader(localizations.secureSharing),
+                      Material(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          onTap: _shareProfileSecurely,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: theme.primaryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    Icons.shield_outlined,
+                                    color: theme.primaryColor,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        localizations.shareProfile,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        localizations.generateSecureToken,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: theme.hintColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: theme.hintColor,
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
+
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
-  Widget _buildCopyableField(String text, String label, IconData icon) {
-    return InkWell(
-      onTap: () => _copyToClipboard(text, label),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildInfoTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    bool isCopyable = false,
+    VoidCallback? onTap,
+  }) {
+    final theme = Theme.of(context);
+    final isTruncated = value.length > 30;
+    final displayValue = isTruncated ? '${value.substring(0, 30)}...' : value;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: theme.primaryColor, size: 20),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(fontSize: 12, color: theme.hintColor),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        displayValue,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isCopyable) ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.copy_outlined, size: 16, color: theme.hintColor),
+                ],
+              ],
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.copy, color: Colors.white70, size: 16),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildModernInfoCard(
-    BuildContext context, {
+  Widget _buildEditField({
     required IconData icon,
-    required String title,
-    required String value,
+    required String label,
+    required TextEditingController controller,
+    TextInputType? keyboardType,
   }) {
+    final theme = Theme.of(context);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: theme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: theme.primaryColor, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: label,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  keyboardType: keyboardType,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-      child: Row(
+    );
+  }
+
+  void _copyToClipboard(String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String _getAccountTypeShort(AccountType? type) {
+    switch (type) {
+      case AccountType.seller:
+        return 'SELLER';
+      case AccountType.factory:
+        return 'FACTORY';
+      case AccountType.customser:
+        return 'CUSTOMER';
+      case AccountType.middleman:
+        return 'MIDDLEMAN';
+      default:
+        return 'USER';
+    }
+  }
+
+  String _formatDate(DateTime date, AppLocalizations localizations) {
+    final months = [
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+}
+
+class _ShareDialog extends StatelessWidget {
+  final String token;
+  final Map<String, dynamic> data;
+  const _ShareDialog({required this.token, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final localizations = AppLocalizations.of(context)!;
+    return AlertDialog(
+      title: Text(localizations.shareProfileSecurely),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(localizations.shareTokenWithTrusted),
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: theme.primaryColor.withOpacity(0.2)),
             ),
-            child: Icon(
-              icon,
-              color: Theme.of(context).primaryColor,
+            child: Text(
+              token,
+              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 12),
+          Text(
+            '${data['name']}, ${data['account_type']}',
+            style: TextStyle(fontSize: 12, color: theme.hintColor),
+          ),
+          Text(
+            localizations.tokenExpires,
+            style: TextStyle(fontSize: 11, color: theme.hintColor),
           ),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(localizations.close),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: token));
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(localizations.tokenCopied),
+                backgroundColor: Colors.green,
+              ),
+            );
+          },
+          icon: const Icon(Icons.copy, size: 18),
+          label: Text(localizations.copyToken),
+        ),
+      ],
     );
   }
 }

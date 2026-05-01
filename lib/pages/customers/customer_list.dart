@@ -6,9 +6,12 @@ import 'package:aurora/models/analysis/enums.dart';
 import 'package:aurora/services/customer_service.dart';
 import 'package:aurora/services/order_service.dart';
 import 'package:aurora/storage/userStorage.dart';
+import 'package:aurora/storage/bill_vault_storage.dart';
 import 'customer_detail.dart';
 import 'customer_form.dart';
 import 'bill_form.dart';
+import 'customer_bills_page.dart';
+import 'banned_customers_page.dart';
 
 enum CustomerViewMode { table, grid }
 
@@ -26,7 +29,8 @@ class _CustomerListPageState extends State<CustomerListPage> {
   Map<String, List<Order>> _customerOrders = {};
   bool _isLoading = true;
   String _searchQuery = '';
-  CustomerViewMode _viewMode = CustomerViewMode.table;
+  CustomerViewMode _viewMode = CustomerViewMode.grid;
+  final Set<String> _expandedCustomers = {};
 
   @override
   void initState() {
@@ -35,6 +39,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
   }
 
   Future<void> _loadCustomers() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final userStorage = Provider.of<UserStorage>(context, listen: false);
@@ -45,30 +50,32 @@ class _CustomerListPageState extends State<CustomerListPage> {
       }
     } catch (e) {
       debugPrint('[CustomerList._loadCustomers] Error: $e');
-      // use cached
     }
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _loadAllOrders(String sellerId) async {
     _customerOrders.clear();
+    final vault = await BillVaultStorage.getInstance();
+    final allBills = vault.getSellerBills(sellerId);
+
     for (final customer in _customers) {
-      try {
-        final orders = await _orderService.fetchOrdersByCustomer(customer.id);
-        _customerOrders[customer.id] = orders;
-      } catch (e) {
-        debugPrint('[CustomerList._loadAllOrders] Error: $e');
-        _customerOrders[customer.id] = [];
-      }
+      final customerBills = allBills
+          .where((o) => o.userId == customer.id)
+          .toList();
+      _customerOrders[customer.id] = customerBills;
     }
   }
 
   List<Customer> get _filteredCustomers {
     if (_searchQuery.isEmpty) return _customers;
     final query = _searchQuery.toLowerCase();
-    return _customers.where((c) =>
-        c.name.toLowerCase().contains(query) ||
-        c.phone.contains(query)).toList();
+    return _customers
+        .where(
+          (c) =>
+              c.name.toLowerCase().contains(query) || c.phone.contains(query),
+        )
+        .toList();
   }
 
   List<Order> _getCustomerOrders(String customerId) {
@@ -82,8 +89,11 @@ class _CustomerListPageState extends State<CustomerListPage> {
         title: const Text('Customers'),
         actions: [
           IconButton(
-            icon: Icon(_viewMode == CustomerViewMode.table
-                ? Icons.grid_view : Icons.table_chart),
+            icon: Icon(
+              _viewMode == CustomerViewMode.table
+                  ? Icons.grid_view
+                  : Icons.table_chart,
+            ),
             onPressed: () {
               setState(() {
                 _viewMode = _viewMode == CustomerViewMode.table
@@ -97,17 +107,30 @@ class _CustomerListPageState extends State<CustomerListPage> {
           ),
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () => _showSearch(),
+            onPressed: _showSearch,
+            tooltip: 'Search customers',
+          ),
+          IconButton(
+            icon: const Icon(Icons.block),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BannedCustomersPage(),
+                ),
+              ).then((_) => _loadCustomers());
+            },
+            tooltip: 'Banned customers',
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _filteredCustomers.isEmpty
-              ? _buildEmpty()
-              : _viewMode == CustomerViewMode.table
-                  ? _buildTableView()
-                  : _buildGridView(),
+          ? _buildEmpty()
+          : _viewMode == CustomerViewMode.table
+          ? _buildTableView()
+          : _buildGridView(),
       floatingActionButton: _buildFAB(),
     );
   }
@@ -136,63 +159,110 @@ class _CustomerListPageState extends State<CustomerListPage> {
   Widget _buildTableView() {
     return RefreshIndicator(
       onRefresh: _loadCustomers,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          child: DataTable(
-            columnSpacing: 16,
-            columns: const [
-              DataColumn(label: Text('Customer')),
-              DataColumn(label: Text('Phone')),
-              DataColumn(label: Text('Orders')),
-              DataColumn(label: Text('Total Spent')),
-              DataColumn(label: Text('Last Purchase')),
-              DataColumn(label: Text('Bills')),
-            ],
-            rows: _filteredCustomers.map((customer) {
-              final orders = _getCustomerOrders(customer.id);
-              return DataRow(
-                onSelectChanged: (_) => _openCustomerDetail(customer),
-                cells: [
-                  DataCell(Text(customer.name)),
-                  DataCell(Text(customer.phone)),
-                  DataCell(Text('${customer.totalOrders}')),
-                  DataCell(Text('EGP ${customer.totalSpent.toStringAsFixed(0)}')),
-                  DataCell(Text(customer.lastPurchaseDate != null
-                      ? '${customer.lastPurchaseDate!.day}/${customer.lastPurchaseDate!.month}/${customer.lastPurchaseDate!.year}'
-                      : 'N/A')),
-                  DataCell(Text('${orders.length} bills')),
-                ],
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGridView() {
-    return RefreshIndicator(
-      onRefresh: _loadCustomers,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          childAspectRatio: 0.85,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-        ),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(8),
         itemCount: _filteredCustomers.length,
         itemBuilder: (context, index) {
           final customer = _filteredCustomers[index];
-          return _CustomerGridTile(
-            customer: customer,
-            onTap: () => _openCustomerDetail(customer),
+          final orders = _getCustomerOrders(customer.id);
+          final isExpanded = _expandedCustomers.contains(customer.id);
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 4),
+            child: ExpansionTile(
+              leading: CircleAvatar(
+                radius: 20,
+                backgroundColor: Theme.of(context).primaryColor,
+                child: Text(
+                  customer.initials,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ),
+              title: Text(
+                customer.name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(customer.phone),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'EGP ${customer.totalSpent.toStringAsFixed(0)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                  Text(
+                    '${orders.length} bills',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+              initiallyExpanded: isExpanded,
+              onExpansionChanged: (expanded) {
+                setState(() {
+                  if (expanded) {
+                    _expandedCustomers.add(customer.id);
+                  } else {
+                    _expandedCustomers.remove(customer.id);
+                  }
+                });
+              },
+              children: [
+                if (orders.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'No bills for this customer',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: orders.length,
+                    itemBuilder: (context, billIndex) {
+                      final order = orders[billIndex];
+                      return _BillListTile(order: order);
+                    },
+                  ),
+              ],
+            ),
           );
         },
       ),
     );
   }
+
+Widget _buildGridView() {
+  return RefreshIndicator(
+    onRefresh: _loadCustomers,
+    child: GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.85,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: _filteredCustomers.length,
+      itemBuilder: (context, index) {
+        final customer = _filteredCustomers[index];
+        return _CustomerGridTile(
+          customer: customer,
+          onTap: () => _openCustomerBills(customer),
+          onLongPress: () => _deleteCustomerAndBills(customer),
+        );
+      },
+    ),
+  );
+}
 
   Widget _buildFAB() {
     return FloatingActionButton(
@@ -231,10 +301,15 @@ class _CustomerListPageState extends State<CustomerListPage> {
   void _addCustomer() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CustomerFormPage(),
-      ),
-    ).then((_) => _loadCustomers());
+      MaterialPageRoute(builder: (context) => const CustomerFormPage()),
+    ).then((result) {
+      if (result != null) {
+        debugPrint(
+          '[CustomerList._addCustomer] Customer created: ${result.name}',
+        );
+        _loadCustomers();
+      }
+    });
   }
 
   void _createBill() {
@@ -243,7 +318,9 @@ class _CustomerListPageState extends State<CustomerListPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('No Customers'),
-          content: const Text('You need to create a customer first before creating a bill.'),
+          content: const Text(
+            'You need to create a customer first before creating a bill.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -277,6 +354,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
                   itemBuilder: (context, index) {
                     final customer = _customers[index];
                     return ListTile(
+                      leading: CircleAvatar(child: Text(customer.initials)),
                       title: Text(customer.name),
                       subtitle: Text(customer.phone),
                       onTap: () {
@@ -284,7 +362,60 @@ class _CustomerListPageState extends State<CustomerListPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => BillFormPage(customer: customer),
+                            builder: (context) =>
+                                BillFormPage(customer: customer),
+                          ),
+                        ).then((result) {
+                          if (result == true) {
+                            _loadCustomers();
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.person_add, color: Colors.blue),
+                title: const Text('Create New Customer'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _addCustomer();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Customer'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _customers.length,
+                  itemBuilder: (context, index) {
+                    final customer = _customers[index];
+                    return ListTile(
+                      leading: CircleAvatar(child: Text(customer.initials)),
+                      title: Text(customer.name),
+                      subtitle: Text(customer.phone),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                BillFormPage(customer: customer),
                           ),
                         );
                       },
@@ -308,13 +439,106 @@ class _CustomerListPageState extends State<CustomerListPage> {
     );
   }
 
-  void _openCustomerDetail(Customer customer) {
+  void _openCustomerBills(Customer customer) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => CustomerDetailPage(customer: customer),
+        builder: (context) => CustomerBillsPage(customer: customer),
+      ),
+    ).then((_) => _loadCustomers());
+  }
+
+  Future<void> _deleteCustomerAndBills(Customer customer) async {
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Customer'),
+        content: Text(
+          'Are you sure you want to delete "${customer.name}" and all their bills? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
+
+    if (confirm != true) return;
+
+    // Set loading state
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      // Get all bills for this customer first (we need them for the ban list)
+      final customerBills = _getCustomerOrders(customer.id);
+      int deletedBills = 0;
+      int failedBills = 0;
+
+      // Delete bills (restore quantities) but keep them in ban list
+      for (final bill in customerBills) {
+        try {
+          final success = await _orderService.deleteOrder(bill.id, forceDelete: true, keepInBanList: true);
+          if (success) {
+            deletedBills++;
+          } else {
+            failedBills++;
+            debugPrint('[CustomerList._deleteCustomerAndBills] Failed to delete bill ${bill.id}');
+          }
+        } catch (e) {
+          failedBills++;
+          debugPrint('[CustomerList._deleteCustomerAndBills] Error deleting bill ${bill.id}: $e');
+        }
+      }
+
+      // Ban the customer (move to ban list with bills instead of deleting)
+      await _customerService.banCustomer(customer.id, customerBills);
+
+      if (mounted) {
+        // Reload customers
+        await _loadCustomers();
+
+        String message = '${customer.name} has been deleted';
+        if (deletedBills > 0) {
+          message += ' ($deletedBills bills deleted';
+          if (failedBills > 0) {
+            message += ', $failedBills bills could not be deleted';
+          }
+          message += ')';
+        } else if (failedBills > 0) {
+          message += ' (warning: $failedBills bills could not be deleted)';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: failedBills > 0 ? Colors.orange : Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[CustomerList._deleteCustomerAndBills] Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting customer: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _showSearch() {
@@ -322,7 +546,7 @@ class _CustomerListPageState extends State<CustomerListPage> {
       context: context,
       delegate: _CustomerSearchDelegate(
         customers: _customers,
-        onSelected: (customer) => _openCustomerDetail(customer),
+        onSelected: (customer) => _openCustomerBills(customer),
       ),
     );
   }
@@ -331,14 +555,20 @@ class _CustomerListPageState extends State<CustomerListPage> {
 class _CustomerGridTile extends StatelessWidget {
   final Customer customer;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
-  const _CustomerGridTile({required this.customer, required this.onTap});
+  const _CustomerGridTile({
+    required this.customer, 
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -381,6 +611,89 @@ class _CustomerGridTile extends StatelessWidget {
   }
 }
 
+class _BillListTile extends StatelessWidget {
+  final Order order;
+
+  const _BillListTile({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: _getStatusColor(order.status).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.receipt_long,
+          color: _getStatusColor(order.status),
+          size: 20,
+        ),
+      ),
+      title: Text(
+        'Bill #${order.id.substring(0, 8)}',
+        style: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        '${_formatDate(order.createdAt)} • ${order.paymentMethod.value.toUpperCase()}',
+        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+      ),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            'EGP ${order.total.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+          _StatusBadge(status: order.status),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(OrderStatus status) {
+    switch (status.value) {
+      case 'pending':
+        return Colors.orange;
+      case 'confirmed':
+        return Colors.blue;
+      case 'processing':
+        return Colors.blue;
+      case 'shipped':
+        return Colors.purple;
+      case 'delivered':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+}
+
 class _CustomerSearchDelegate extends SearchDelegate<Customer?> {
   final List<Customer> customers;
   final Function(Customer) onSelected;
@@ -390,10 +703,7 @@ class _CustomerSearchDelegate extends SearchDelegate<Customer?> {
   @override
   List<Widget> buildActions(BuildContext context) {
     return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () => query = '',
-      ),
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
     ];
   }
 
@@ -414,9 +724,13 @@ class _CustomerSearchDelegate extends SearchDelegate<Customer?> {
   Widget buildSuggestions(BuildContext context) {
     final results = query.isEmpty
         ? customers
-        : customers.where((c) =>
-            c.name.toLowerCase().contains(query.toLowerCase()) ||
-            c.phone.contains(query)).toList();
+        : customers
+              .where(
+                (c) =>
+                    c.name.toLowerCase().contains(query.toLowerCase()) ||
+                    c.phone.contains(query),
+              )
+              .toList();
 
     return ListView.builder(
       itemCount: results.length,
@@ -432,62 +746,6 @@ class _CustomerSearchDelegate extends SearchDelegate<Customer?> {
           },
         );
       },
-    );
-  }
-}
-
-class _OrderCard extends StatelessWidget {
-  final Order order;
-
-  const _OrderCard({required this.order});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Order #${order.id.substring(0, 8)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                _StatusBadge(status: order.status),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Items: ${order.totalItems}',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              order.createdAt.toString().split('.')[0],
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Total', style: TextStyle(color: Colors.grey[600])),
-                Text(
-                  'EGP ${order.total.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -540,7 +798,11 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
