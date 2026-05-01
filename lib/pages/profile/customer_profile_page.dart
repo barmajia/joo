@@ -31,9 +31,9 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
 
   void _initControllers() {
     final user = context.read<UserProvider>().user;
-    _fullNameController = TextEditingController(text: user?.fullName ?? '');
+    _fullNameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
-    _phoneController = TextEditingController(text: user?.phone ?? '');
+    _phoneController = TextEditingController(text: user?.phonenumber.toString() ?? '');
   }
 
   Future<void> _saveProfile() async {
@@ -155,7 +155,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                       // Profile Avatar
                       CircleAvatar(
                         radius: 50,
-                        backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                        backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                         child: Icon(
                           Icons.person,
                           size: 50,
@@ -164,7 +164,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        user.fullName ?? 'Customer',
+                        user.name ?? 'Customer',
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),

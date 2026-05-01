@@ -17,7 +17,7 @@ class UserProvider extends ChangeNotifier {
     try {
       final storage = UserStorage();
       final userData = await storage.getUser();
-      
+
       if (userData != null) {
         _user = Users.fromJson(userData);
       } else {
@@ -49,10 +49,7 @@ class UserProvider extends ChangeNotifier {
       _user = _user!.copyWith(
         name: data['full_name'] ?? _user!.name,
         email: data['email'] ?? _user!.email,
-        metadata: {
-          ...?_user!.metadata,
-          ...data,
-        },
+        metadata: {...?_user!.metadata, ...data},
       );
       notifyListeners();
     } catch (e) {

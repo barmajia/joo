@@ -67,19 +67,7 @@ abstract class BaseProfile {
       'website_url': websiteUrl,
     };
   }
-
-  static AccountType _parseAccountType(String? value) {
-    if (value == null || value.isEmpty) return AccountType.seller;
-    
-    // Handle legacy typo
-    if (value == 'customser') return AccountType.customer;
-    
-    for (var type in AccountType.values) {
-      if (type.name == value) return type;
-    }
-    return AccountType.seller;
-  }
-
+  
   @override
   String toString() {
     return '$runtimeType(userId: $userId, email: $email, accountType: $accountType)';

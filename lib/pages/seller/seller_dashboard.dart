@@ -4,6 +4,7 @@ import 'package:aurora/services/product_service.dart';
 import 'package:aurora/services/order_service.dart';
 import 'package:aurora/services/customer_service.dart';
 import 'package:aurora/models/product/productModel.dart';
+import 'package:aurora/models/analysis/enums.dart';
 import 'package:aurora/pages/seller/products_page.dart';
 import 'package:aurora/pages/seller/deals_page.dart';
 import 'package:aurora/pages/analysis/analysis_page.dart';
@@ -66,7 +67,6 @@ class _SellerDashboardState extends State<SellerDashboard> {
       await Future.wait([
         _loadProducts(),
         _loadOrders(),
-        _loadCustomers(),
         _loadRevenue(),
       ]);
 
@@ -115,21 +115,21 @@ class _SellerDashboardState extends State<SellerDashboard> {
 
     try {
       // Get recent orders
-      final orders = await _orderService.getSellerOrders(user.id);
+      final orders = await _orderService.fetchOrdersBySeller(user.id);
       
       if (!mounted) return;
       setState(() {
-        _pendingOrders = orders.where((o) => o.status == 'pending').length;
-        _processingOrders = orders.where((o) => o.status == 'processing').length;
+        _pendingOrders = orders.where((o) => o.status == OrderStatus.pending).length;
+        // _processingOrders = orders.where((o) => o.status == OrderStatus.processing).length;
         
         // Format recent orders for display
         _recentOrders = orders
             .take(5)
             .map((o) => {
                   'id': o.id,
-                  'customerName': o.customerName ?? 'Unknown',
-                  'total': o.totalAmount ?? 0.0,
-                  'status': o.status,
+                  'customerName': o.userId,
+                  'total': o.total,
+                  'status': o.status.name,
                   'createdAt': o.createdAt,
                 })
             .toList();
@@ -139,29 +139,12 @@ class _SellerDashboardState extends State<SellerDashboard> {
     }
   }
 
-  Future<void> _loadCustomers() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final customers = await _customerService.getCustomers(user.id);
-      
-      if (!mounted) return;
-      setState(() {
-        _totalCustomers = customers.length;
-      });
-    } catch (e) {
-      debugPrint('[SellerDashboard._loadCustomers] Error: $e');
-    }
-  }
-
   Future<void> _loadRevenue() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
     try {
-      // Calculate total and monthly revenue from orders
-      final orders = await _orderService.getSellerOrders(user.id);
+      final orders = await _orderService.fetchOrdersBySeller(user.id);
       
       double total = 0.0;
       double monthly = 0.0;
@@ -169,11 +152,12 @@ class _SellerDashboardState extends State<SellerDashboard> {
       final firstDayOfMonth = DateTime(now.year, now.month, 1);
 
       for (var order in orders) {
-        final amount = order.totalAmount ?? 0.0;
+        final amount = order.total;
         total += amount;
         
         if (order.createdAt != null && 
-            order.createdAt!.isAfter(firstDayOfMonth)) {
+            order.createdAt!.isAfter(firstDayOfMonth) &&
+            order.status == OrderStatus.delivered) {
           monthly += amount;
         }
       }
@@ -856,7 +840,7 @@ class _SellerDashboardState extends State<SellerDashboard> {
             _buildMetricRow(
               'Return Rate',
               '2.3%',
-              Icons.return_item,
+              Icons.assignment_return,
               Colors.red,
             ),
             const SizedBox(height: 12),

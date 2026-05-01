@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:aurora/services/product_service.dart';
 import 'package:aurora/services/order_service.dart';
+import 'package:aurora/models/analysis/enums.dart';
 import 'package:intl/intl.dart';
 
 class FactoryDashboard extends StatefulWidget {
@@ -84,7 +85,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
     try {
       // Get factory products and orders
       final products = await _productService.getSellerProducts(user.id);
-      final orders = await _orderService.getSellerOrders(user.id);
+      final orders = await _orderService.fetchOrdersBySeller(user.id);
 
       if (!mounted) return;
       setState(() {
@@ -93,8 +94,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
           ['pending', 'processing', 'in_production'].contains(o.status)
         ).length;
         _completedThisMonth = orders.where((o) => 
-          o.status == 'delivered' && 
-          o.createdAt != null &&
+          o.status == OrderStatus.delivered && 
           _isCurrentMonth(o.createdAt)
         ).length;
 
@@ -104,10 +104,10 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
             .take(5)
             .map((o) => {
                   'id': o.id,
-                  'productName': o.items?.first['product_name'] ?? 'Unknown',
-                  'quantity': o.items?.first['quantity'] ?? 0,
-                  'status': o.status,
-                  'dueDate': o.expectedDeliveryDate,
+                  'productName': o.items.isNotEmpty ? o.items.first.productName ?? 'Unknown' : 'Unknown',
+                  'quantity': o.items.isNotEmpty ? o.items.first.quantity : 0,
+                  'status': o.status.name,
+                  'dueDate': o.deliveredAt,
                 })
             .toList();
       });
@@ -147,18 +147,18 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
     if (user == null) return;
 
     try {
-      final orders = await _orderService.getSellerOrders(user.id);
+      final orders = await _orderService.fetchOrdersBySeller(user.id);
       
       double monthly = 0.0;
       final now = DateTime.now();
       final firstDayOfMonth = DateTime(now.year, now.month, 1);
 
       for (var order in orders) {
-        final amount = order.totalAmount ?? 0.0;
+        final amount = order.total;
         
         if (order.createdAt != null && 
             order.createdAt!.isAfter(firstDayOfMonth) &&
-            order.status == 'delivered') {
+            order.status == OrderStatus.delivered) {
           monthly += amount;
         }
       }
@@ -283,7 +283,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
           children: [
             CircleAvatar(
               radius: 30,
-              backgroundColor: Colors.white.withOpacity(0.2),
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
               child: const Icon(
                 Icons.factory,
                 color: Colors.white,
@@ -345,7 +345,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
         _buildStatCard(
           'Active Jobs',
           '$_activeProductionJobs',
-          Icons.manufacturing,
+          Icons.precision_manufacturing,
           Colors.blue,
         ),
         _buildStatCard(
@@ -496,7 +496,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -535,8 +535,8 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
             Row(
               children: [
                 Icon(
-                  Icons.gauge,
-                  color: _getColorForUtilization(utilization),
+                  Icons.speed,
+                  color: _getColorForUtilization(utilization.toDouble()),
                   size: 24,
                 ),
                 const SizedBox(width: 8),
@@ -561,7 +561,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
-                          color: _getColorForUtilization(utilization),
+                          color: _getColorForUtilization(utilization.toDouble()),
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -585,11 +585,11 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
                         width: 120,
                         height: 120,
                         child: CircularProgressIndicator(
-                          value: utilization / 100,
+                           value: utilization.toDouble() / 100,
                           strokeWidth: 12,
                           backgroundColor: Colors.grey.shade200,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            _getColorForUtilization(utilization),
+                             _getColorForUtilization(utilization.toDouble()),
                           ),
                         ),
                       ),
@@ -622,12 +622,12 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
               ],
             ),
             const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: utilization / 100,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                _getColorForUtilization(utilization),
-              ),
+             LinearProgressIndicator(
+               value: utilization.toDouble() / 100,
+               backgroundColor: Colors.grey.shade200,
+               valueColor: AlwaysStoppedAnimation<Color>(
+                 _getColorForUtilization(utilization.toDouble()),
+               ),
               minHeight: 8,
             ),
             const SizedBox(height: 8),
@@ -723,7 +723,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
             Text(
               'Completed orders this month',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 12,
               ),
             ),
@@ -799,8 +799,8 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       leading: CircleAvatar(
-        backgroundColor: statusColor.withOpacity(0.1),
-        child: Icon(Icons.manufacturing, color: statusColor, size: 20),
+        backgroundColor: statusColor.withValues(alpha: 0.1),
+        child: Icon(Icons.precision_manufacturing, color: statusColor, size: 20),
       ),
       title: Text(
         job['productName'] ?? 'Unknown Product',
@@ -813,7 +813,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: statusColor.withOpacity(0.1),
+              color: statusColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
@@ -899,7 +899,7 @@ class _FactoryDashboardState extends State<FactoryDashboard> {
             margin: const EdgeInsets.only(top: 4),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(

@@ -120,7 +120,6 @@ class SellerProfile extends BaseProfile {
     );
   }
 
-  @override
   Map<String, dynamic> toMap() {
     return {
       ...toBaseMap(),
@@ -153,7 +152,6 @@ class SellerProfile extends BaseProfile {
   factory SellerProfile.fromJson(Map<String, dynamic> json) => 
       SellerProfile.fromMap(json);
 
-  @override
   SellerProfile copyWith({
     String? userId,
     String? email,

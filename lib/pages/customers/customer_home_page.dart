@@ -90,7 +90,7 @@ class CustomerDashboard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      user?.fullName ?? 'Customer',
+                      user?.name ?? 'Customer',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -99,7 +99,7 @@ class CustomerDashboard extends StatelessWidget {
                 ),
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                  backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                   child: Icon(
                     Icons.person,
                     color: Theme.of(context).primaryColor,

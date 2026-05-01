@@ -10,9 +10,6 @@ class FactoryProfile extends BaseProfile {
   final String? specialization;
   final Map<String, dynamic>? settings;
   final List<dynamic>? customers;
-  final double? latitude;
-  final double? longitude;
-  final String? websiteUrl;
 
   FactoryProfile({
     required String userId,
@@ -82,7 +79,6 @@ class FactoryProfile extends BaseProfile {
     );
   }
 
-  @override
   Map<String, dynamic> toMap() {
     return {
       ...toBaseMap(),
@@ -102,7 +98,6 @@ class FactoryProfile extends BaseProfile {
   factory FactoryProfile.fromJson(Map<String, dynamic> json) => 
       FactoryProfile.fromMap(json);
 
-  @override
   FactoryProfile copyWith({
     String? userId,
     String? email,

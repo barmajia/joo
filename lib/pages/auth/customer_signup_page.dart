@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../storage/userStorage.dart';
 import '../../users/user_provider.dart';
+import '../../users/users.dart';
 import '../../theme/theme_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
@@ -63,7 +64,8 @@ class _CustomerSignupPageState extends State<CustomerSignupPage> {
         await apiService.createCustomerProfile(customerData);
 
         // Save session
-        await storage.saveUser(response['user']);
+          final user = Users.fromJson(response['user']);
+          await storage.saveSeller(user);
         await userProvider.loadUser();
 
         if (mounted) {

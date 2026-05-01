@@ -3,10 +3,11 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../storage/userStorage.dart';
 import '../../users/user_provider.dart';
+import '../../users/users.dart';
 import '../../theme/theme_provider.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
-import 'customer_home_page.dart';
+import '../customers/customer_home_page.dart';
 
 class CustomerLoginPage extends StatefulWidget {
   const CustomerLoginPage({Key? key}) : super(key: key);
@@ -44,7 +45,8 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
         
         if (userProfile != null && userProfile['account_type'] == 'customer') {
           // Save session
-          await storage.saveUser(response['user']);
+          final user = Users.fromJson(response['user']);
+          await storage.saveSeller(user);
           await userProvider.loadUser();
           
           if (mounted) {
@@ -74,8 +76,7 @@ class _CustomerLoginPageState extends State<CustomerLoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.currentThemeData.brightness == Brightness.dark;
+    // final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
