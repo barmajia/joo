@@ -31,7 +31,6 @@ class _AnalysisPageState extends State<AnalysisPage>
   PeriodType _selectedPeriod = PeriodType.monthly;
   int _selectedTabIndex = 0;
   List<SellerGoal> _goals = [];
-  bool _showGoalsTab = false;
 
   late TabController _tabController;
 

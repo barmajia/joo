@@ -1,6 +1,7 @@
 import 'package:aurora/pages/seller/add_product_page.dart';
 import 'package:aurora/pages/seller/products_page.dart';
 import 'package:aurora/pages/analysis/analysis_page.dart';
+import 'package:aurora/pages/chat/chat_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
@@ -110,16 +111,17 @@ class AuroraApp extends StatelessWidget {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: localeProvider.locale,
-      routes: {
-        '/settings': (context) => const SettingsPage(),
-        '/profile': (context) => const ProfilePage(),
-        '/seller_product': (context) => const SellerProductsPage(),
-        '/seller_add_product': (context) => const AddProductPage(),
-        '/welcome': (context) => const WelcomePage(),
-        '/home': (context) => const Homepapge(),
-        '/customers': (context) => const CustomerListPage(),
-        '/analytics': (context) => const AnalysisPage(),
-      },
+       routes: {
+         '/settings': (context) => const SettingsPage(),
+         '/profile': (context) => const ProfilePage(),
+         '/seller_product': (context) => const SellerProductsPage(),
+         '/seller_add_product': (context) => const AddProductPage(),
+         '/welcome': (context) => const WelcomePage(),
+         '/home': (context) => const Homepapge(),
+         '/customers': (context) => const CustomerListPage(),
+         '/analytics': (context) => const AnalysisPage(),
+         '/chat': (context) => const ChatListPage(),
+       },
       home: const AppLockScreen(child: SplashScreen()),
     );
   }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:aurora/gen_l10n/app_localizations.dart';
 import 'package:aurora/storage/userStorage.dart';
 import 'package:aurora/users/account_type.dart';
+import 'package:aurora/pages/chat/chat_list_page.dart';
 
 class FixidDrawer extends StatelessWidget {
   const FixidDrawer({super.key});
@@ -237,6 +238,14 @@ class FixidDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.of(context).pushNamed('/analytics');
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.chat_bubble_outlined,
+                    title: 'Chats',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).pushNamed('/chat');
                     },
                   ),
                   const SizedBox(height: 8),

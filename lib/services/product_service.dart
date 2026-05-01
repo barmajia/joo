@@ -302,57 +302,58 @@ class ProductService {
           '[ProductService.deductQuantity] Supabase RLS error, vault updated: $supabaseError',
         );
       }
-      } catch (e) {
-        debugPrint('[ProductService.deductQuantity] Error: $e');
-        rethrow;
-      }
+    } catch (e) {
+      debugPrint('[ProductService.deductQuantity] Error: $e');
+      rethrow;
     }
+  }
 
-    Future<void> restoreQuantity(String productId, int quantityToRestore, String sellerId) async {
-      try {
-        final vault = await _vault;
-        Product? product = vault.getProduct(productId);
+  Future<void> restoreQuantity(
+    String productId,
+    int quantityToRestore,
+    String sellerId,
+  ) async {
+    try {
+      final vault = await _vault;
+      Product? product = vault.getProduct(productId);
 
-        if (product == null) {
-          final sellerProducts = vault.getSellerProducts(sellerId);
-          product = sellerProducts.firstWhere((p) => p.id == productId);
-        }
-
-        if (product == null) {
-          debugPrint('[ProductService.restoreQuantity] Product not found: $productId, skipping restore');
-          return;
-        }
-
-        final newQuantity = product.quantity + quantityToRestore;
-        final updated = product.copyWith(quantity: newQuantity);
-
-        // Update vault cache first
+      if (product == null) {
         final sellerProducts = vault.getSellerProducts(sellerId);
-        final index = sellerProducts.indexWhere((p) => p.id == productId);
-        if (index != -1) {
-          sellerProducts[index] = updated;
-          await vault.saveSellerProducts(sellerId, sellerProducts);
-        } else {
-          sellerProducts.add(updated);
-          await vault.saveSellerProducts(sellerId, sellerProducts);
-        }
-
-        await vault.saveProduct(productId, updated);
-
-        // Try Supabase
-        try {
-          await _supabase
-              .from('products')
-              .update({'quantity': newQuantity})
-              .eq('id', productId);
-        } catch (supabaseError) {
-          debugPrint('[ProductService.restoreQuantity] Supabase error, vault updated: $supabaseError');
-        }
-      } catch (e) {
-        debugPrint('[ProductService.restoreQuantity] Error: $e');
-        rethrow;
+        product = sellerProducts.firstWhere((p) => p.id == productId);
       }
+
+      final newQuantity = product.quantity + quantityToRestore;
+      final updated = product.copyWith(quantity: newQuantity);
+
+      // Update vault cache first
+      final sellerProducts = vault.getSellerProducts(sellerId);
+      final index = sellerProducts.indexWhere((p) => p.id == productId);
+      if (index != -1) {
+        sellerProducts[index] = updated;
+        await vault.saveSellerProducts(sellerId, sellerProducts);
+      } else {
+        sellerProducts.add(updated);
+        await vault.saveSellerProducts(sellerId, sellerProducts);
+      }
+
+      await vault.saveProduct(productId, updated);
+
+      // Try Supabase
+      try {
+        await _supabase
+            .from('products')
+            .update({'quantity': newQuantity})
+            .eq('id', productId);
+      } catch (supabaseError) {
+        debugPrint(
+          '[ProductService.restoreQuantity] Supabase error, vault updated: $supabaseError',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ProductService.restoreQuantity] Error: $e');
+      rethrow;
     }
+  }
 
   Map<String, dynamic> getCacheStatus() {
     return {

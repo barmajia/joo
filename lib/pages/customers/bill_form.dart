@@ -52,7 +52,6 @@ class _BillFormPageState extends State<BillFormPage> {
   List<Customer> _availableCustomers = [];
   List<Product> _availableProducts = [];
   final List<_BillLineItem> _lineItems = [];
-  String _productSearch = '';
 
   @override
   void initState() {
@@ -70,7 +69,9 @@ class _BillFormPageState extends State<BillFormPage> {
         final products = await _productService.getSellerProducts(sellerId);
         setState(() {
           _availableCustomers = customers;
-          _availableProducts = products.where((p) => p.isInStock && !p.isDeleted).toList();
+          _availableProducts = products
+              .where((p) => p.isInStock && !p.isDeleted)
+              .toList();
           _isLoadingProducts = false;
         });
       }
@@ -101,7 +102,9 @@ class _BillFormPageState extends State<BillFormPage> {
   }
 
   Future<void> _selectProduct(Product product) async {
-    final existingIndex = _lineItems.indexWhere((item) => item.product.id == product.id);
+    final existingIndex = _lineItems.indexWhere(
+      (item) => item.product.id == product.id,
+    );
     if (existingIndex != -1) {
       final existing = _lineItems[existingIndex];
       final maxQty = product.quantity - existing.quantity;
@@ -128,20 +131,20 @@ class _BillFormPageState extends State<BillFormPage> {
     } else {
       final result = await showDialog<int>(
         context: context,
-        builder: (context) => _QuantityDialog(
-          maxQuantity: product.quantity,
-          currentQuantity: 1,
-        ),
+        builder: (context) =>
+            _QuantityDialog(maxQuantity: product.quantity, currentQuantity: 1),
       );
 
       if (result != null && result > 0) {
         setState(() {
-          _lineItems.add(_BillLineItem(
-            id: const Uuid().v4(),
-            product: product,
-            quantity: result,
-            unitPrice: product.price ?? 0,
-          ));
+          _lineItems.add(
+            _BillLineItem(
+              id: const Uuid().v4(),
+              product: product,
+              quantity: result,
+              unitPrice: product.price ?? 0,
+            ),
+          );
         });
       }
     }
@@ -165,9 +168,9 @@ class _BillFormPageState extends State<BillFormPage> {
   Future<void> _saveBill() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedCustomer == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a customer')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please select a customer')));
       return;
     }
     if (_lineItems.isEmpty) {
@@ -220,14 +223,19 @@ class _BillFormPageState extends State<BillFormPage> {
             sellerId,
           );
         } catch (e) {
-          debugPrint('[BillForm._saveBill] Failed to deduct ${item.product.title}: $e');
+          debugPrint(
+            '[BillForm._saveBill] Failed to deduct ${item.product.title}: $e',
+          );
         }
       }
 
       if (mounted) {
         Navigator.of(context).pop(true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bill created successfully'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Bill created successfully'),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
@@ -245,9 +253,7 @@ class _BillFormPageState extends State<BillFormPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingProducts) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -268,7 +274,10 @@ class _BillFormPageState extends State<BillFormPage> {
                 _buildCustomerCard(),
                 const SizedBox(height: 16),
               ],
-              const Text('Products', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text(
+                'Products',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               if (_lineItems.isEmpty)
                 Container(
@@ -281,7 +290,11 @@ class _BillFormPageState extends State<BillFormPage> {
                     child: _availableProducts.isEmpty
                         ? Column(
                             children: [
-                              const Icon(Icons.inventory_2_outlined, size: 40, color: Colors.grey),
+                              const Icon(
+                                Icons.inventory_2_outlined,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
                               const SizedBox(height: 8),
                               Text(
                                 'No products in stock',
@@ -307,7 +320,9 @@ class _BillFormPageState extends State<BillFormPage> {
                       margin: const EdgeInsets.only(bottom: 4),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                          backgroundColor: Theme.of(
+                            context,
+                          ).primaryColor.withValues(alpha: 0.1),
                           child: const Icon(Icons.inventory_2, size: 20),
                         ),
                         title: Text(item.product.title),
@@ -319,10 +334,16 @@ class _BillFormPageState extends State<BillFormPage> {
                           children: [
                             Text(
                               'EGP ${item.totalPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                              icon: const Icon(
+                                Icons.delete,
+                                size: 20,
+                                color: Colors.red,
+                              ),
                               onPressed: () => _removeItem(index),
                             ),
                           ],
@@ -360,7 +381,10 @@ class _BillFormPageState extends State<BillFormPage> {
                       const Text('Subtotal:', style: TextStyle(fontSize: 14)),
                       Text(
                         'EGP ${_subtotal.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
@@ -414,7 +438,14 @@ class _BillFormPageState extends State<BillFormPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total:', style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Total:',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     Text(
                       'EGP ${_total.toStringAsFixed(2)}',
                       style: const TextStyle(
@@ -517,7 +548,10 @@ class _BillFormPageState extends State<BillFormPage> {
               children: [
                 Text(
                   customer.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
                 Text(customer.phone, style: TextStyle(color: Colors.grey[600])),
               ],
@@ -550,10 +584,14 @@ class _ProductPickerDialogState extends State<_ProductPickerDialog> {
   List<Product> get _filtered {
     if (_searchQuery.isEmpty) return widget.products;
     final query = _searchQuery.toLowerCase();
-    return widget.products.where((p) =>
-        p.title.toLowerCase().contains(query) ||
-        (p.sku?.toLowerCase().contains(query) ?? false) ||
-        (p.brand.toLowerCase().contains(query))).toList();
+    return widget.products
+        .where(
+          (p) =>
+              p.title.toLowerCase().contains(query) ||
+              (p.sku?.toLowerCase().contains(query) ?? false) ||
+              (p.brand.toLowerCase().contains(query)),
+        )
+        .toList();
   }
 
   @override
@@ -570,7 +608,10 @@ class _ProductPickerDialogState extends State<_ProductPickerDialog> {
                 hintText: 'Search products...',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
               ),
               onChanged: (value) => setState(() => _searchQuery = value.trim()),
             ),
@@ -644,7 +685,9 @@ class _QuantityDialogState extends State<_QuantityDialog> {
   void initState() {
     super.initState();
     _quantity = widget.currentQuantity;
-    _controller = TextEditingController(text: widget.currentQuantity.toString());
+    _controller = TextEditingController(
+      text: widget.currentQuantity.toString(),
+    );
   }
 
   @override
@@ -676,7 +719,9 @@ class _QuantityDialogState extends State<_QuantityDialog> {
               onChanged: (value) {
                 final parsed = int.tryParse(value);
                 if (parsed != null && parsed > 0) {
-                  setState(() => _quantity = parsed.clamp(1, widget.maxQuantity));
+                  setState(
+                    () => _quantity = parsed.clamp(1, widget.maxQuantity),
+                  );
                 }
               },
             ),

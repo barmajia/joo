@@ -31,6 +31,7 @@ dependencies:
 
   # Custom / third‑party
   debug_print: ^0.0.1+1 # updated from 0.0.1+1 – latest is 1.0.0
+  vault_storage: ^4.0.0
 
 flutter:
   uses-material-design: true
