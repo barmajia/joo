@@ -28,11 +28,11 @@ import 'package:aurora/pages/orders/customer_orders_page.dart';
 import 'package:aurora/users/user_provider.dart';
 
 Future<void> main() async {
-  await dotenv.load(fileName: '.env');
-  String supabaseUrl = await dotenv.env['SUPABASE_URL']!;
-  String supabaseAnonKey = await dotenv.env['SUPABASE_ANON_KEY']!;
-  Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
+  String supabaseUrl = dotenv.env['SUPABASE_URL']!;
+  String supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']!;
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
   await Storage.init();
 
