@@ -248,6 +248,22 @@ class FixidDrawer extends StatelessWidget {
                       Navigator.of(context).pushNamed('/chat');
                     },
                   ),
+                  _buildDrawerItem(
+                    icon: Icons.people_outlined,
+                    title: 'Connections',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).pushNamed('/connections');
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notifications',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.of(context).pushNamed('/notifications');
+                    },
+                  ),
                   const SizedBox(height: 8),
                   const Divider(height: 1),
                   _buildDrawerItem(

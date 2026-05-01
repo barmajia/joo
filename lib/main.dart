@@ -2,6 +2,9 @@ import 'package:aurora/pages/seller/add_product_page.dart';
 import 'package:aurora/pages/seller/products_page.dart';
 import 'package:aurora/pages/analysis/analysis_page.dart';
 import 'package:aurora/pages/chat/chat_list_page.dart';
+import 'package:aurora/pages/connections/connect_via_token_page.dart';
+import 'package:aurora/pages/notifications/notification_list_page.dart';
+import 'package:aurora/pages/connections/connections_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
@@ -121,6 +124,9 @@ class AuroraApp extends StatelessWidget {
          '/customers': (context) => const CustomerListPage(),
          '/analytics': (context) => const AnalysisPage(),
          '/chat': (context) => const ChatListPage(),
+         '/connect': (context) => const ConnectViaTokenPage(),
+         '/notifications': (context) => const NotificationListPage(),
+         '/connections': (context) => const ConnectionsListPage(),
        },
       home: const AppLockScreen(child: SplashScreen()),
     );

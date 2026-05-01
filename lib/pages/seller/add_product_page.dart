@@ -328,7 +328,7 @@ class _AddProductPageState extends State<AddProductPage> {
         final path = '$sellerId/$productId/$fileName';
 
         await _supabase.storage
-            .from('products')
+            .from('product-images')
             .upload(
               path,
               File(img.path),
@@ -336,7 +336,9 @@ class _AddProductPageState extends State<AddProductPage> {
             );
 
         // Get public URL
-        final publicUrl = _supabase.storage.from('products').getPublicUrl(path);
+        final publicUrl = _supabase.storage
+            .from('product-images')
+            .getPublicUrl(path);
 
         uploadedUrls.add(publicUrl);
       }
